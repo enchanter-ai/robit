@@ -41,7 +41,8 @@ def test_version_output_contains_version_string(capsys):
     main(["version"])
     out = capsys.readouterr().out
     assert "enchanter-agent" in out
-    assert "0.1.0" in out
+    from enchanter import __version__
+    assert __version__ in out
 
 
 # ─── T02: no args → help + exit 1 ─────────────────────────────────────────────

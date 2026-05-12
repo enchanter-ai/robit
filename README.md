@@ -21,21 +21,19 @@ Enforcement runtime (PORTED)    7-phase lifecycle + plugin protocol + trust-pin 
 Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 ```
 
-## Phase 0 — done when
-
-A no-op plugin registered against all 7 phases, a request dispatched through the lifecycle, every phase emits the right event, every phase collects ACKs correctly, and the test goes green.
-
 ## Status
 
 | Phase | Component | Status |
 |---|---|---|
-| 0 | Lifecycle + bus + plugin protocol + context | in progress |
-| 0 | Validation test | in progress |
-| 1 | Port 9 plugin business logic (crow, djinn, emu, gorgon, hydra, lich, naga, pech, sylph) | not started |
-| 2 | Conduct injection layer | not started |
-| 3 | Inference substrate wire-in | not started |
-| 4 | First engine: `deep-research` | not started |
-| 5 | Packaging + CLI | not started |
+| 0 | Lifecycle + bus + plugin protocol + context | ✅ |
+| 1 | 14 engines ported (destructive-op-gate, secret-mask, cve-pattern-gate, trust-scorer, intent-anchor, token-runway, structural-fingerprint, cost-ledger, rate-limiter, import-graph-pagerank, tool-poisoning-scan, boundary-segmenter, inference-substrate, deep-research) | ✅ |
+| 2 | Conduct injection layer | ✅ |
+| 3 | Inference substrate wire-in | ✅ |
+| 4 | First engine: `deep-research` (6-phase pipeline) | ✅ |
+| 5 | Packaging + CLI inspection (`enchanter version|status|engines|conduct|inference|tier|serve`) | ✅ |
+| 5 | MCP server mode (stdio + Streamable-HTTP, engines as MCP tools) | ✅ |
+
+445 tests passing across engines, conduct, lifecycle, inference, integration, and MCP server suites.
 
 ## License
 

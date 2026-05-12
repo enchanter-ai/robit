@@ -22,7 +22,7 @@ surfaced in wave N can be fixed before wave N+1 fires.
 | EnchantedEvent / PluginAck | `client/enchanter/src/bus/event-types.ts` | `enchanter/core/events.py` | ✅ |
 | destructive-op-gate (sylph W5) | `client/enchanter/src/plugins/sylph.adapter.ts` | `enchanter/engines/destructive_op_gate/` | ✅ |
 
-## Wave 1 — Stateless security engines (parallel × 2)
+## Wave 1 — Stateless security engines ✅
 
 Pure regex / payload scan. No external state. Lowest risk for validating the engine contract at scale.
 
@@ -31,7 +31,7 @@ Pure regex / payload scan. No external state. Lowest risk for validating the eng
 | secret-mask | `plugins/hydra.adapter.ts` + `plugins/hydra/cve-patterns.ts` SECRET_PATTERNS_V0_1 | `enchanter/engines/secret_mask/` | small (regex + replace) |
 | cve-pattern-gate | `plugins/hydra.adapter.ts` + `plugins/hydra/cve-patterns.ts` CVE_PATTERNS_V0_1 | `enchanter/engines/cve_pattern_gate/` | medium (severity-tiered) |
 
-## Wave 2 — Algorithmic engines (parallel × 4)
+## Wave 2 — Algorithmic engines ✅
 
 Stateful algorithms. Each engine carries its own state machine.
 
@@ -42,7 +42,7 @@ Stateful algorithms. Each engine carries its own state machine.
 | token-runway | `plugins/emu.adapter.ts` (Markov drift + runway forecast) | `enchanter/engines/token_runway/` | medium |
 | structural-fingerprint | `plugins/naga.adapter.ts` + naga's TF-IDF/Levenshtein | `enchanter/engines/structural_fingerprint/` | medium |
 
-## Wave 3 — Cost + dependency engines (parallel × 3)
+## Wave 3 — Cost + dependency engines ✅
 
 | Engine | Source | Target | Complexity |
 |---|---|---|---|
@@ -50,14 +50,14 @@ Stateful algorithms. Each engine carries its own state machine.
 | rate-limiter | pech's rate-shield logic | `enchanter/engines/rate_limiter/` | small |
 | import-graph-pagerank | `plugins/gorgon.adapter.ts` + `plugins/gorgon/tarjan.ts` + python-extractor | `enchanter/engines/import_graph_pagerank/` | high (Tarjan SCC + pagerank) |
 
-## Wave 4 — Lich (code-review engines, parallel × 2)
+## Wave 4 — Lich (code-review engines) ✅
 
 | Engine | Source | Target | Complexity |
 |---|---|---|---|
 | tool-poisoning-scan | `plugins/lich.adapter.ts` + `plugins/lich/sandbox.ts` | `enchanter/engines/tool_poisoning_scan/` | medium |
 | boundary-segmenter | `plugins/sylph.adapter.ts` W2 (Jaccard sliding window) | `enchanter/engines/boundary_segmenter/` | medium |
 
-## Wave 5 — Infrastructure (port from TS, parallel × 3)
+## Wave 5 — Infrastructure (port from TS) ✅
 
 | Component | Source | Target | Complexity |
 |---|---|---|---|
@@ -65,21 +65,21 @@ Stateful algorithms. Each engine carries its own state machine.
 | stdio transport + 8MB cap | `src/transport/stdio.ts` | `enchanter/transport/stdio.py` | medium |
 | streamable-http transport + SSE | `src/transport/streamable-http.ts` + `tls-pin.ts` | `enchanter/transport/http.py` | high |
 
-## Wave 6 — Registry + trust-pin (parallel × 2)
+## Wave 6 — Registry + trust-pin ✅
 
 | Component | Source | Target | Complexity |
 |---|---|---|---|
 | Namespace registry + collision guard + schema-digest pinning | `src/registry/namespace.ts` | `enchanter/registry/namespace.py` | medium |
 | Trust-pin (TOFU + mismatch veto + JSONL store) | `src/registry/trust-pin.ts` | `enchanter/registry/trust_pin.py` | medium |
 
-## Wave 7 — Engine manifest loader
+## Wave 7 — Engine manifest loader ✅
 
 | Component | Target | Complexity |
 |---|---|---|
 | `engine.toml` parser + discovery glob + registry builder | `enchanter/loader/manifest.py` | small |
 | Migrate all ported engines to manifest-based registration | (touches every engine dir) | refactor |
 
-## Wave 8 — Conduct injection layer (NEW, not from TS)
+## Wave 8 — Conduct injection layer (NEW, not from TS) ✅
 
 | Component | Target | Complexity |
 |---|---|---|
@@ -88,7 +88,7 @@ Stateful algorithms. Each engine carries its own state machine.
 | System-prompt XML composer (prompt-injection layer) | `enchanter/conduct/composer.py` | medium |
 | Code-enforced rules registry → middleware plugins | `enchanter/conduct/middleware.py` | medium |
 
-## Wave 9 — Inference substrate wire-in
+## Wave 9 — Inference substrate wire-in ✅
 
 | Component | Source | Target | Complexity |
 |---|---|---|---|
@@ -96,7 +96,7 @@ Stateful algorithms. Each engine carries its own state machine.
 | Catalog/briefings access | `wixie/plugins/inference-engine/state/*` | `enchanter/inference/state.py` | small |
 | Wire as `post-session` + `cross-session` plugin | new | `enchanter/engines/inference_substrate/` | medium |
 
-## Wave 10 — Deep-research engine (multi-phase, the first real "engine")
+## Wave 10 — Deep-research engine (multi-phase, the first real "engine") ✅
 
 The deep-research pipeline is the most contract-heavy engine: 6 phases, 3 tier dispatches, structured artifacts. Port last because it exercises everything above.
 
@@ -109,13 +109,15 @@ The deep-research pipeline is the most contract-heavy engine: 6 phases, 3 tier d
 | Synthesize | Opus inline | `phases/synthesize.py` |
 | Verify | Haiku verifier | `phases/verify.py` |
 
-## Wave 11 — Packaging + CLI + MCP server mode
+## Wave 11 — Packaging + CLI + MCP server mode ✅
 
-| Component | Target |
-|---|---|
-| CLI entry point (`enchanter run`, `enchanter status`, etc.) | `enchanter/cli.py` |
-| MCP server mode (expose engines as MCP tools) | `enchanter/mcp_server.py` |
-| pip-installable package metadata | `pyproject.toml` polish |
+| Component | Target | Status |
+|---|---|---|
+| CLI entry point (`enchanter version|status|engines|conduct|inference|tier|serve`) | `enchanter/cli/__init__.py` | ✅ |
+| pip-installable package metadata | `pyproject.toml` | ✅ |
+| MCP server mode — stdio + Streamable-HTTP transports, tools/list + tools/call, JSON-RPC error mapping, 8 MiB body cap | `enchanter/mcp_server/` | ✅ |
+
+Default tool set wraps `secret-mask` and `destructive-op-gate` adapters as `enchanter.scan_secrets` and `enchanter.check_destructive_op`. Additional engine wrappers are registered ad-hoc by passing `Tool` instances to `ToolRegistry.register()`. `deep_research` requires an injected LLM client + tier router and is left to the operator to register.
 
 ## Concurrency policy
 

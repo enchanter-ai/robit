@@ -273,6 +273,50 @@ def cmd_tier_route(args: argparse.Namespace) -> int:
     return 0
 
 
+# -- serve --
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    import asyncio as _asyncio
+
+    try:
+        from enchanter.mcp_server import MCPServer, serve_http, serve_stdio
+    except Exception as exc:  # noqa: BLE001
+        _err(f"error: mcp_server import failed: {exc}")
+        return 2
+
+    server = MCPServer()
+
+    if args.http:
+        host, _, port_s = args.http.rpartition(":")
+        if not host or not port_s:
+            _err(f"error: --http expects HOST:PORT, got {args.http!r}")
+            return 1
+        try:
+            port = int(port_s)
+        except ValueError:
+            _err(f"error: invalid port in --http: {port_s!r}")
+            return 1
+        try:
+            _asyncio.run(serve_http(server, host=host, port=port, path=args.path))
+        except KeyboardInterrupt:
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            _err(f"error: serve_http failed: {exc}")
+            return 2
+        return 0
+
+    # Default: stdio
+    try:
+        _asyncio.run(serve_stdio(server))
+    except KeyboardInterrupt:
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        _err(f"error: serve_stdio failed: {exc}")
+        return 2
+    return 0
+
+
 # -- status --
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -399,6 +443,28 @@ def _build_parser() -> argparse.ArgumentParser:
     p_inf_rec = infer_sub.add_parser("reconcile", help="Run inference reconcile cycle")
     p_inf_rec.set_defaults(func=cmd_inference_reconcile)
 
+    # ── serve ──────────────────────────────────────────────────────────────────
+    p_serve = subparsers.add_parser(
+        "serve", help="Run enchanter as an MCP server (stdio or HTTP)"
+    )
+    serve_mode = p_serve.add_mutually_exclusive_group()
+    serve_mode.add_argument(
+        "--stdio",
+        action="store_true",
+        help="Speak MCP over stdin/stdout (default).",
+    )
+    serve_mode.add_argument(
+        "--http",
+        metavar="HOST:PORT",
+        help="Listen on HOST:PORT and serve Streamable-HTTP MCP.",
+    )
+    p_serve.add_argument(
+        "--path",
+        default="/mcp",
+        help="HTTP path the server binds to (default: /mcp).",
+    )
+    p_serve.set_defaults(func=cmd_serve)
+
     # ── tier ───────────────────────────────────────────────────────────────────
     p_tier = subparsers.add_parser("tier", help="Tier router commands")
     tier_sub = p_tier.add_subparsers(dest="verb", metavar="<verb>")
@@ -422,6 +488,7 @@ def _build_parser() -> argparse.ArgumentParser:
 _NOUN_ONLY_HANDLERS = {
     "version": cmd_version,
     "status": cmd_status,
+    "serve": cmd_serve,
 }
 
 # Map (noun, verb) pairs to their handler (for noun+verb subcommands without

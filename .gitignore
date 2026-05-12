@@ -58,8 +58,7 @@ ENV/
 *.swo
 
 # Local runtime state — engine-managed, not source
-enchanter/state/inference/*.jsonl
-enchanter/state/inference/*.json
+enchanter/state/
 
 # OS
 .DS_Store
