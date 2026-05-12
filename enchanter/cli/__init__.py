@@ -16,6 +16,8 @@ Subcommand tree::
     enchanter inference status [--json]
     enchanter inference reconcile
     enchanter tier route <task_class>
+    enchanter serve [--stdio | --http HOST:PORT | --proxy HOST:PORT]
+                    [--path PATH] [--accept LIST] [--no-conduct]
 
 Exit codes:
     0  success
@@ -279,6 +281,58 @@ def cmd_tier_route(args: argparse.Namespace) -> int:
 def cmd_serve(args: argparse.Namespace) -> int:
     import asyncio as _asyncio
 
+    # --proxy is dispatched to a different runtime (the wire proxy, not MCP).
+    if getattr(args, "proxy", None):
+        host, _, port_s = args.proxy.rpartition(":")
+        if not host or not port_s:
+            _err(f"error: --proxy expects HOST:PORT, got {args.proxy!r}")
+            return 1
+        try:
+            port = int(port_s)
+        except ValueError:
+            _err(f"error: invalid port in --proxy: {port_s!r}")
+            return 1
+
+        accept_raw = getattr(args, "accept", "anthropic,openai,gemini")
+        accept_set = frozenset(
+            tok.strip() for tok in accept_raw.split(",") if tok.strip()
+        )
+        valid_families = {"anthropic", "openai", "gemini"}
+        invalid = accept_set - valid_families
+        if invalid:
+            _err(
+                f"error: --accept contains unknown families: {','.join(sorted(invalid))}. "
+                f"Valid: {','.join(sorted(valid_families))}"
+            )
+            return 1
+        if not accept_set:
+            _err("error: --accept must list at least one family")
+            return 1
+
+        conduct = not getattr(args, "no_conduct", False)
+
+        try:
+            from enchanter.proxy import serve_proxy
+        except Exception as exc:  # noqa: BLE001
+            _err(f"error: enchanter.proxy import failed: {exc}")
+            return 2
+
+        try:
+            _asyncio.run(
+                serve_proxy(
+                    host=host,
+                    port=port,
+                    accept=accept_set,
+                    conduct=conduct,
+                )
+            )
+        except KeyboardInterrupt:
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            _err(f"error: serve_proxy failed: {exc}")
+            return 2
+        return 0
+
     try:
         from enchanter.mcp_server import MCPServer, serve_http, serve_stdio
     except Exception as exc:  # noqa: BLE001
@@ -445,7 +499,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── serve ──────────────────────────────────────────────────────────────────
     p_serve = subparsers.add_parser(
-        "serve", help="Run enchanter as an MCP server (stdio or HTTP)"
+        "serve",
+        help="Run enchanter as an MCP server (stdio/HTTP) or as a wire proxy",
     )
     serve_mode = p_serve.add_mutually_exclusive_group()
     serve_mode.add_argument(
@@ -458,10 +513,36 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="HOST:PORT",
         help="Listen on HOST:PORT and serve Streamable-HTTP MCP.",
     )
+    serve_mode.add_argument(
+        "--proxy",
+        metavar="HOST:PORT",
+        help=(
+            "Listen on HOST:PORT and serve the wire-format proxy "
+            "(Anthropic/OpenAI/Gemini endpoints fronted by the enchanter "
+            "engine bus)."
+        ),
+    )
     p_serve.add_argument(
         "--path",
         default="/mcp",
-        help="HTTP path the server binds to (default: /mcp).",
+        help="HTTP path the MCP server binds to (default: /mcp). Ignored by --proxy.",
+    )
+    p_serve.add_argument(
+        "--accept",
+        default="anthropic,openai,gemini",
+        help=(
+            "Comma-separated proxy families to accept. Adapters whose "
+            "family is omitted respond 404. (Default: "
+            "anthropic,openai,gemini.) Only used with --proxy."
+        ),
+    )
+    p_serve.add_argument(
+        "--no-conduct",
+        action="store_true",
+        help=(
+            "Disable enchanter-conduct injection on proxied requests. "
+            "Only used with --proxy."
+        ),
     )
     p_serve.set_defaults(func=cmd_serve)
 

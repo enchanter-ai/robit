@@ -133,3 +133,20 @@ A wave is "done" when:
 2. Engine-specific pytest passes inside each subagent.
 3. Parent runs the FULL suite (`pytest tests/`) end-to-end and it stays green.
 4. No regressions on prior waves.
+
+## Wave 12 — LLM proxy mode (Anthropic + OpenAI + Gemini wire formats) ✅
+
+Managed-split execution across 5 subagents in 3 waves.
+
+| Wave | Agents | Files | Status |
+|---|---|---|---|
+| 12.0 — Foundation | 1 | `proxy/canonical.py`, `proxy/upstream.py` (LiteLLM bridge), `proxy/conduct.py` | ✅ |
+| 12.1 — Adapters (× 3 parallel) | 3 | `proxy/adapters/anthropic.py`, `proxy/adapters/openai.py`, `proxy/adapters/gemini.py` | ✅ |
+| 12.1.5 — Contract fix | 1 | `CanonicalChunk` gains `block_kind`/`tool_id`/`tool_name` for streaming tool fidelity | ✅ |
+| 12.2 — Integration (× 2 parallel) | 2 | `proxy/pipeline.py` + `proxy/streaming.py` · `proxy/server.py` + CLI `--proxy` flag | ✅ |
+| 12.2.5 — Hoist `AdapterParseError` | 1 | Shared `proxy/adapters/errors.py` — server now correctly returns 400 on malformed JSON from every wire format | ✅ |
+
+Test count: 576 → 606 (+30 proxy-specific). Total: 606 passing. Live HTTP smoke verified: 451 veto path (cve-pattern-gate on `rm -rf /`), 404 unknown path, 400 malformed JSON with per-family error envelopes, conduct injection toggleable.
+
+New dependency: `litellm>=1.40` for upstream provider routing.
+

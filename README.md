@@ -32,8 +32,28 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 | 4 | First engine: `deep-research` (6-phase pipeline) | ✅ |
 | 5 | Packaging + CLI inspection (`enchanter version|status|engines|conduct|inference|tier|serve`) | ✅ |
 | 5 | MCP server mode (stdio + Streamable-HTTP, engines as MCP tools) | ✅ |
+| 6 | LLM proxy mode (Anthropic + OpenAI + Gemini wire formats, streaming, LiteLLM upstream) | ✅ |
 
-445 tests passing across engines, conduct, lifecycle, inference, integration, and MCP server suites.
+606 tests passing across engines, conduct, lifecycle, inference, integration, MCP server, and proxy suites.
+
+## LLM proxy quickstart
+
+`enchanter serve --proxy 127.0.0.1:8000` runs a wire-format proxy that accepts requests on three endpoints and routes upstream via LiteLLM:
+
+- `POST /v1/messages` — Anthropic Messages API shape
+- `POST /v1/chat/completions` — OpenAI Chat Completions shape (also covers OpenAI-compatible providers: Groq, Together, Mistral, Ollama, vLLM, OpenRouter)
+- `POST /v1beta/models/{model}:generateContent` and `:streamGenerateContent` — Gemini shape
+
+Every request runs through the 7-phase lifecycle: `destructive-op-gate` + `cve-pattern-gate` veto destructive prompts (HTTP 451), conduct rules are injected into the system prompt, `secret-mask` scans the response. Streaming SSE is supported on all three endpoints.
+
+Point a host agent's base URL at the proxy and it gets enforcement transparently:
+
+```bash
+ANTHROPIC_BASE_URL=http://127.0.0.1:8000 claude
+OPENAI_BASE_URL=http://127.0.0.1:8000/v1 cursor  # or any OpenAI-compatible host
+```
+
+Per-request override: append `?conduct=off` to skip conduct injection. Disable a wire format globally: `--accept openai,gemini`. Upstream auth: LiteLLM reads `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` from the environment.
 
 ## License
 
