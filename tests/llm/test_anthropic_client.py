@@ -79,12 +79,16 @@ def _make_async_anthropic_mock(sdk_response) -> tuple[MagicMock, MagicMock]:
 # ---------------------------------------------------------------------------
 
 def test_construct_without_api_key_raises(monkeypatch):
+    # AnthropicClient now also accepts CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_AUTH_TOKEN
+    # for subscription auth — clear all three so the no-creds path actually fires.
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
 
     # We still need anthropic importable so the deferred import succeeds.
     fake_anthropic = MagicMock()
     with patch.dict("sys.modules", {"anthropic": fake_anthropic}):
-        with pytest.raises(ValueError, match="No Anthropic API key"):
+        with pytest.raises(ValueError, match="No Anthropic credentials"):
             AnthropicClient()
 
 
