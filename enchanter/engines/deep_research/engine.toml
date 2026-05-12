@@ -1,0 +1,11 @@
+name = "deep-research"
+description = "E0 deep research pipeline (advisory). Decomposes topics into sub-questions, fans out parallel Haiku fetchers, triangulates claims, synthesizes claims.json, and verifies every claim traces to a source. Activates on 'research.requested' event; phases=() means it does not fire on lifecycle phases."
+version = "1.0.0"
+phases = []
+required = false
+budget_tier = "high-only"
+adapter = "enchanter.engines.deep_research.adapter:adapter"
+
+[topics]
+subscribes = ["research.requested"]
+emits = ["deep-research.started", "deep-research.completed", "deep-research.failed"]
