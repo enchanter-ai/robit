@@ -1,0 +1,11 @@
+name = "trust-scorer"
+description = "Advisory Beta-Bernoulli trust scoring per (server_id, tool_name) at trust-gate. Fail-open. Emits trust score and review order when posterior mean falls below threshold."
+version = "1.0.0"
+phases = ["trust-gate"]
+required = false
+budget_tier = "med-or-higher"
+adapter = "enchanter.engines.trust_scorer.adapter:adapter"
+
+[topics]
+subscribes = ["mcp.tool.call.requested", "lifecycle.trust-gate"]
+emits = ["trust-scorer.trust.scored", "trust-scorer.review.ordered"]
