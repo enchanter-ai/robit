@@ -1,0 +1,11 @@
+name = "rate-limiter"
+description = "Advisory pre-dispatch per-vendor token-bucket rate limiter. Fail-open. Mirrors pech rate-check advisory path; emits bucket.exhausted event when limit is hit."
+version = "1.0.0"
+phases = ["pre-dispatch"]
+required = false
+budget_tier = "always"
+adapter = "enchanter.engines.rate_limiter.adapter:adapter"
+
+[topics]
+subscribes = ["lifecycle.pre-dispatch", "mcp.tool.call.requested"]
+emits = ["rate-limiter.bucket-exhausted"]
