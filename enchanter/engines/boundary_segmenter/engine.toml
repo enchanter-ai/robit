@@ -1,0 +1,11 @@
+name = "boundary-segmenter"
+description = "Advisory W2 post-session boundary segmentation. Accumulates filesystem write events into clusters; closes idle clusters and emits boundary.closed events at post-session. Fail-open."
+version = "1.0.0"
+phases = ["post-session"]
+required = false
+budget_tier = "always"
+adapter = "enchanter.engines.boundary_segmenter.adapter:adapter"
+
+[topics]
+subscribes = ["filesystem.write.completed", "lifecycle.post-session"]
+emits = ["boundary-segmenter.boundary.closed"]
