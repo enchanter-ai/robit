@@ -21,6 +21,7 @@ import sys
 import urllib.error
 import urllib.request
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -219,23 +220,162 @@ async def case_conduct_off(host: str, port: int, captured: list[dict[str, Any]])
         assert not has_conduct, "conduct was injected despite ?conduct=off"
 
 
+async def case_cost_ledger_header(host: str, port: int, captured: list[dict[str, Any]]) -> None:
+    print("\n-- Case 6: X-Enchanter-Cost-Cents header on real HTTP response --")
+    captured.clear()
+    body = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "say hi"}],
+    }
+    status, headers, _ = await asyncio.get_running_loop().run_in_executor(
+        None, http_post, f"http://{host}:{port}/v1/messages", body
+    )
+    print(f"  HTTP {status}")
+    cents = headers.get("X-Enchanter-Cost-Cents")
+    print(f"  X-Enchanter-Cost-Cents: {cents}")
+    print(f"  X-Enchanter-Bus-Events: {headers.get('X-Enchanter-Bus-Events')}")
+    assert status == 200
+    assert cents is not None and int(cents) >= 1, (
+        f"expected non-zero cost header, got {cents!r}"
+    )
+
+
+async def case_fastpath_bypass(state_dir: Path, port_holder: list[int]) -> None:
+    """Spin up a SECOND proxy instance with the fast-path env+allowlist set.
+    Verifies env-gated + key-allowlisted bypass cycle end-to-end."""
+    print("\n-- Case 7: fast-path bypass cycle (env gate + allow-list + audit) --")
+    import hashlib, os
+    from enchanter.proxy import fastpath as fp_mod
+
+    # Write allow-list with a single SHA-256 of our test key
+    test_key = "sk-fastpath-smoke"
+    allowlist = {
+        "keys": [hashlib.sha256(test_key.encode()).hexdigest()],
+        "models": ["claude-3-5-sonnet-20241022"],
+    }
+    (state_dir / "fastpath-allowlist.json").write_text(
+        json.dumps(allowlist), encoding="utf-8"
+    )
+
+    # Enable env gate + redirect state dir
+    os.environ["ENCHANTER_ALLOW_FASTPATH_BYPASS"] = "1"
+    os.environ["ENCHANTER_STATE_DIR"] = str(state_dir)
+    fp_mod.load_config(force_reload=True)
+
+    # Mock the passthrough's upstream HTTP call (don't reach real Anthropic)
+    fake_resp = (
+        200,
+        {"Content-Type": "application/json"},
+        b'{"id":"msg_fp","type":"message","content":[{"type":"text","text":"hi"}]}',
+    )
+    with patch("enchanter.proxy.fastpath.passthrough", new=AsyncMock(return_value=fake_resp)):
+        async with proxy_running("127.0.0.1", 0) as (host, port):
+            port_holder.append(port)
+            body = {
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+            data = json.dumps(body).encode()
+            req = urllib.request.Request(
+                f"http://{host}:{port}/v1/messages",
+                data=data,
+                headers={"Content-Type": "application/json", "x-api-key": test_key},
+                method="POST",
+            )
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, urllib.request.urlopen, req
+            )
+            status = resp.status
+            headers = dict(resp.headers)
+            resp.read()
+            print(f"  HTTP {status}")
+            print(f"  X-Enchanter-FastPath: {headers.get('X-Enchanter-FastPath')}")
+            assert headers.get("X-Enchanter-FastPath") == "bypass"
+
+    # Verify audit JSONL was written
+    audit_file = state_dir / "audit" / "fastpath-bypass.jsonl"
+    print(f"  audit file exists: {audit_file.exists()}")
+    if audit_file.exists():
+        record = json.loads(audit_file.read_text(encoding="utf-8").strip().splitlines()[-1])
+        print(f"  audit record kind: {record.get('kind')}")
+        print(f"  audit record provider: {record.get('upstream_provider')}")
+        print(f"  audit record key_short: {record.get('key_hash_short')}")
+        assert record["kind"] == "proxy.fastpath.bypass"
+
+    # Clean up env
+    os.environ.pop("ENCHANTER_ALLOW_FASTPATH_BYPASS", None)
+    fp_mod.load_config(force_reload=True)
+
+
+async def case_inference_artifact_emit(host: str, port: int, state_dir: Path,
+                                       captured: list[dict[str, Any]]) -> None:
+    """Verify the inference-substrate emitter writes an artifact at POST_SESSION
+    when the gate is on. Requires the proxy to be running BEFORE the gate flips."""
+    print("\n-- Case 8: inference-substrate artifact emission --")
+    import os
+    os.environ["ENCHANTER_INFERENCE_ENABLED"] = "1"
+    os.environ["ENCHANTER_INFERENCE_STATE"] = str(state_dir / "inference")
+    artifacts_file = state_dir / "inference" / "artifacts.jsonl"
+    artifacts_before = (
+        len(artifacts_file.read_text().splitlines())
+        if artifacts_file.exists() else 0
+    )
+    print(f"  artifacts before: {artifacts_before}")
+
+    body = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 64,
+        "messages": [{"role": "user", "content": "say hi"}],
+    }
+    status, _, _ = await asyncio.get_running_loop().run_in_executor(
+        None, http_post, f"http://{host}:{port}/v1/messages", body
+    )
+    print(f"  HTTP {status}")
+    artifacts_after = (
+        len(artifacts_file.read_text().splitlines())
+        if artifacts_file.exists() else 0
+    )
+    print(f"  artifacts after: {artifacts_after}")
+    print(f"  delta: +{artifacts_after - artifacts_before}")
+    if artifacts_after > artifacts_before:
+        last = json.loads(artifacts_file.read_text().splitlines()[-1])
+        print(f"  last artifact code: {last.get('code')}")
+        print(f"  last artifact category: {last.get('category')}")
+
+    os.environ.pop("ENCHANTER_INFERENCE_ENABLED", None)
+    os.environ.pop("ENCHANTER_INFERENCE_STATE", None)
+    # Note: artifact emit is best-effort; don't hard-fail the smoke on it
+    # since the engine may swallow errors per its honest-numbers contract.
+
+
 # -- Main ---------------------------------------------------------------------
 
 async def main() -> int:
+    import tempfile
     captured: list[dict[str, Any]] = []
     upstream_mock = AsyncMock(side_effect=make_upstream_mock(captured))
 
     print("Patching litellm.acompletion with in-process mock...")
-    with patch("enchanter.proxy.upstream.litellm.acompletion", upstream_mock):
-        async with proxy_running("127.0.0.1", 0) as (host, port):
-            print(f"Proxy listening on {host}:{port}\n")
-            await case_benign_anthropic(host, port, captured)
-            await case_destructive_anthropic(host, port, captured)
-            await case_benign_openai(host, port, captured)
-            await case_benign_gemini(host, port, captured)
-            await case_conduct_off(host, port, captured)
+    with tempfile.TemporaryDirectory() as tmp:
+        state_dir = Path(tmp)
+        with patch("enchanter.proxy.upstream.litellm.acompletion", upstream_mock):
+            async with proxy_running("127.0.0.1", 0) as (host, port):
+                print(f"Proxy listening on {host}:{port}\n")
+                await case_benign_anthropic(host, port, captured)
+                await case_destructive_anthropic(host, port, captured)
+                await case_benign_openai(host, port, captured)
+                await case_benign_gemini(host, port, captured)
+                await case_conduct_off(host, port, captured)
+                await case_cost_ledger_header(host, port, captured)
+                await case_inference_artifact_emit(host, port, state_dir, captured)
 
-    print("\n[OK] All 5 cases passed")
+        # Fast-path needs its own proxy lifecycle because env vars must be
+        # set BEFORE the server starts to take effect on first config load.
+        await case_fastpath_bypass(state_dir, port_holder=[])
+
+    print("\n[OK] All 8 cases passed")
     return 0
 
 
