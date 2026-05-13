@@ -1,4 +1,4 @@
-"""enchanter.cli.format — pure formatting helpers for CLI output.
+"""enchanter.insights_cli.format — pure formatting helpers for CLI output.
 
 All functions are pure (no I/O, no sys.stdout).  Each returns a string.
 Callers write the string themselves so tests can inspect it without

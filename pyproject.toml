@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "enchanter-agent"
-version = "0.4.0"
+version = "0.5.0"
 description = "Enforcement-first MCP-aware agent runtime. Port of the TypeScript MCP client architecture into Python with conduct injection and inference substrate."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ keywords = ["mcp", "model-context-protocol", "ai-agent", "orchestrator", "securi
 dependencies = [
     "anthropic>=0.40",
     "litellm>=1.40",
+    "textual>=0.50",
 ]
 
 [project.optional-dependencies]
@@ -24,7 +25,12 @@ dev = [
 ]
 
 [project.scripts]
-enchanter = "enchanter.cli:main"
+# The inspector lives under `enchanter-insights` (renamed in Wave 15.rename).
+enchanter-insights = "enchanter.insights_cli:main"
+# `enchanter` is the coding-agent CLI — Textual REPL with enchanter
+# enforcement baked in. Wave 15.0 ships the foundation skeleton; Wave 15.1+
+# extend it.
+enchanter = "enchanter.agent.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

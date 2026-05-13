@@ -113,7 +113,7 @@ The deep-research pipeline is the most contract-heavy engine: 6 phases, 3 tier d
 
 | Component | Target | Status |
 |---|---|---|
-| CLI entry point (`enchanter version|status|engines|conduct|inference|tier|serve`) | `enchanter/cli/__init__.py` | ✅ |
+| CLI entry point (`enchanter-insights version|status|engines|conduct|inference|tier|serve`, renamed from `enchanter` in Wave 15.rename) | `enchanter/insights_cli/__init__.py` | ✅ |
 | pip-installable package metadata | `pyproject.toml` | ✅ |
 | MCP server mode — stdio + Streamable-HTTP transports, tools/list + tools/call, JSON-RPC error mapping, 8 MiB body cap | `enchanter/mcp_server/` | ✅ |
 
@@ -170,4 +170,38 @@ Managed-split execution across 11 subagents in 7 waves. Net delta:
 ## Delegation-of-authority audit ✅
 
 Sequential two-agent audit produced `docs/architecture/delegation-of-authority.md` and the canonical brief at `docs/architecture/audits/delegation-prompt.md`. The audit's Wave 14 plan (5 entries + deferred bucket) is the source of truth for the next sprint cycle. Wave 14.1 from that plan landed this cycle; 14.0, 14.2, 14.3, 14.4 are deferred.
+
+## Wave 15.rename — Inspector CLI rename ✅
+
+`enchanter` → `enchanter-insights`. The `enchanter` name is reserved for
+the 0.5.0 coding-agent CLI. All inspection commands move verbatim:
+
+  enchanter-insights version
+  enchanter-insights status
+  enchanter-insights engines list
+  ... etc
+
+Mechanical scope only: `enchanter/cli/` → `enchanter/insights_cli/`,
+`[project.scripts]` entry renamed, internal imports + docstrings updated,
+test imports updated. No behavior change. Version stays at 0.4.0.
+
+
+## Wave 15 — Coding-agent CLI + inspector rename (0.5.0) ✅
+
+Managed-split execution across 14 subagents in 6 waves. Net delta: 751 → 1029
+tests (+278), version 0.4.0 → 0.5.0.
+
+| Wave | Agents | Scope | Tests |
+|---|---|---|---|
+| 15.rename | 1 | Renamed `enchanter` → `enchanter-insights`. `enchanter` reserved for coding-agent. | 0 |
+| 15.0 — Agent foundation | 1 | `enchanter/agent/`: Conversation, Tool Protocol, ToolRegistry, SlashCommand Protocol, AgentLoop with event stream, session persistence, bare Textual app skeleton | +36 |
+| 15.1 — Core tools (× 5 parallel) | 5 | file_read · file_write+file_edit (atomic, unified-diff output) · glob+grep · bash (destructive-op-gate vetoes BEFORE execution) · web_fetch (HTTPS-only, SSRF-guarded) | +113 |
+| 15.2 — UX layer (× 4 parallel) | 4 | F: REPL polish (RichLog + Input + history) · G: DiffView + ApprovalPrompt · H: EnforcementChip (5 kinds: veto/redaction/conduct/audit/cost) · I: live CostTicker | +49 |
+| 15.3 — Advanced (× 3 parallel) | 3 | J: MCP client (`enchanter/agent/mcp/`, stdio JSON-RPC, allow-listed servers) · K: Plan mode (`/plan`, `/edit`, `/cancel`, `/execute`) · L: Subagent dispatch (`subagent` tool with 3 built-in roles: deep-research, find-references, review-diff; depth cap = 2) | +81 |
+| 15.4 — Ship 0.5.0 | me | Bump version, smoke, commit, push | n/a |
+
+New dep: `textual>=0.50`. Two binary entry points: `enchanter` (coding-agent
+REPL) + `enchanter-insights` (inspector). All LLM calls in the agent go
+through `enchanter.proxy.pipeline.run` so conduct injection + trust-gate +
+post-response secret-mask + audit JSONL apply to every turn automatically.
 
