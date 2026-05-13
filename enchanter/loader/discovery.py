@@ -17,15 +17,15 @@ Public API:
 
 from __future__ import annotations
 
-import importlib
 from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from enchanter.core.plugin import PluginAdapter, PluginRegistry
 
-from .errors import DependencyCycleError, EngineLoadError, ManifestSchemaError
+from .errors import DependencyCycleError, ManifestSchemaError
 from .manifest import EngineManifest, parse_manifest
+from .runtimes import load_runtime
 
 if TYPE_CHECKING:
     pass
@@ -58,44 +58,17 @@ def find_engine_manifests(root: Path) -> list[Path]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Adapter import
+# Adapter resolution (delegates to the runtime registry)
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _import_adapter(manifest: EngineManifest) -> PluginAdapter:
-    """Import and return the adapter object referenced by *manifest.adapter*.
+    """Resolve the manifest to its concrete adapter via the runtime registry.
 
-    The ``adapter`` field uses Python entry-point notation: ``module.path:attr``.
-
-    Raises:
-        EngineLoadError: Import fails or the attribute does not exist.
+    For runtime='python' this imports ``module.path:attr`` (historical behavior).
+    For runtime='sidecar' this returns a SidecarAdapter wrapping a subprocess
+    (lazily spawned on first on_phase call).
     """
-    adapter_str = manifest.adapter
-    module_path, _, attr_name = adapter_str.partition(":")
-
-    if not module_path or not attr_name:
-        raise EngineLoadError(
-            f"adapter string {adapter_str!r} is not valid 'module:attr' notation",
-            engine_name=manifest.name,
-            adapter_path=adapter_str,
-        )
-
-    try:
-        module = importlib.import_module(module_path)
-    except ImportError as exc:
-        raise EngineLoadError(
-            f"cannot import module {module_path!r}: {exc}",
-            engine_name=manifest.name,
-            adapter_path=adapter_str,
-        ) from exc
-
-    if not hasattr(module, attr_name):
-        raise EngineLoadError(
-            f"module {module_path!r} has no attribute {attr_name!r}",
-            engine_name=manifest.name,
-            adapter_path=adapter_str,
-        )
-
-    return getattr(module, attr_name)  # type: ignore[return-value]
+    return load_runtime(manifest)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

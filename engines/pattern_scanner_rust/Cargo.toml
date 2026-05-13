@@ -1,0 +1,18 @@
+[package]
+name = "pattern-scanner-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aho-corasick = "1.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+
+[[bin]]
+name = "pattern-scanner-rust"
+path = "src/main.rs"

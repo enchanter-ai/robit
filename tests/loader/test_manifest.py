@@ -257,3 +257,290 @@ def test_dependency_cycle_raises(tmp_path: Path) -> None:
 
     err = exc_info.value
     assert len(err.cycle) > 0
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Wave 13.1.5 — runtime field & sidecar manifest variants
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+_BASE_HEADER = """\
+    name = "test-engine"
+    description = "desc"
+    version = "1.0.0"
+    phases = ["trust-gate"]
+    required = false
+    budget_tier = "always"
+
+    [topics]
+    subscribes = ["x"]
+    emits = ["y"]
+"""
+
+
+def test_runtime_absent_defaults_to_python(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        adapter = "mod:attr"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    m = parse_manifest(p)
+    assert m.runtime == "python"
+    assert m.adapter == "mod:attr"
+    assert m.command == ""
+    assert m.args == ()
+
+
+def test_runtime_python_with_adapter_valid(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "python"
+        adapter = "mod:attr"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    m = parse_manifest(p)
+    assert m.runtime == "python"
+    assert m.adapter == "mod:attr"
+
+
+def test_runtime_python_without_adapter_raises(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "python"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    with pytest.raises(ManifestSchemaError) as exc_info:
+        parse_manifest(p)
+    assert "adapter" in str(exc_info.value)
+
+
+def test_runtime_sidecar_with_command_valid(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "rust-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "sidecar"
+        command = "./bin/engine"
+        args = ["--mode", "stdio"]
+        env_allowlist = ["PATH", "HOME"]
+
+        [adapter_metadata]
+        language = "rust"
+        version = "1.2.3"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    m = parse_manifest(p)
+    assert m.runtime == "sidecar"
+    assert m.command == "./bin/engine"
+    assert m.args == ("--mode", "stdio")
+    assert m.env_allowlist == ("PATH", "HOME")
+    assert dict(m.adapter_metadata) == {"language": "rust", "version": "1.2.3"}
+    assert m.adapter == ""
+
+
+def test_runtime_sidecar_defaults_env_allowlist_and_args(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "rust-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "sidecar"
+        command = "./bin/engine"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    m = parse_manifest(p)
+    assert m.args == ()
+    assert m.env_allowlist == ("PATH",)
+
+
+def test_runtime_sidecar_without_command_raises(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "rust-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "sidecar"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    with pytest.raises(ManifestSchemaError) as exc_info:
+        parse_manifest(p)
+    assert "command" in str(exc_info.value)
+
+
+def test_runtime_sidecar_with_adapter_forbidden(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "rust-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "sidecar"
+        command = "./bin/engine"
+        adapter = "mod:attr"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    with pytest.raises(ManifestSchemaError) as exc_info:
+        parse_manifest(p)
+    assert "adapter" in str(exc_info.value)
+
+
+def test_runtime_python_with_command_forbidden(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "python"
+        adapter = "mod:attr"
+        command = "./bin/engine"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    with pytest.raises(ManifestSchemaError) as exc_info:
+        parse_manifest(p)
+    assert "command" in str(exc_info.value)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Wave 13.3 — concurrent_safe field
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_concurrent_safe_absent_defaults_to_false(tmp_path: Path) -> None:
+    """Manifest without ``concurrent_safe`` defaults to False (serial-only)."""
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        adapter = "mod:attr"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    m = parse_manifest(p)
+    assert m.concurrent_safe is False
+
+
+def test_concurrent_safe_true_parses_cleanly(tmp_path: Path) -> None:
+    """Manifest with ``concurrent_safe = true`` parses to True."""
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        adapter = "mod:attr"
+        concurrent_safe = true
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    m = parse_manifest(p)
+    assert m.concurrent_safe is True
+
+
+def test_concurrent_safe_string_rejected(tmp_path: Path) -> None:
+    """Manifest with ``concurrent_safe = "yes"`` raises ManifestSchemaError."""
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        adapter = "mod:attr"
+        concurrent_safe = "yes"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    with pytest.raises(ManifestSchemaError) as exc_info:
+        parse_manifest(p)
+    assert "concurrent_safe" in str(exc_info.value) or exc_info.value.field == "concurrent_safe"
+
+
+def test_unknown_runtime_value_raises(tmp_path: Path) -> None:
+    toml = textwrap.dedent("""\
+        name = "test-engine"
+        description = "desc"
+        version = "1.0.0"
+        phases = ["trust-gate"]
+        required = false
+        budget_tier = "always"
+        runtime = "wasm"
+        adapter = "mod:attr"
+
+        [topics]
+        subscribes = ["x"]
+        emits = ["y"]
+    """)
+    p = _write_toml(tmp_path, toml)
+    with pytest.raises(ManifestSchemaError) as exc_info:
+        parse_manifest(p)
+    assert "wasm" in str(exc_info.value) or "runtime" in str(exc_info.value)

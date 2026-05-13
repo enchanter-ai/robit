@@ -31,6 +31,12 @@ class PluginAdapter(Protocol):
     required: bool  # True → fail-closed on missing ACK; False → fail-open with degraded=True
     topics: PluginTopics
     budget_tier: BudgetTierGate
+    # Wave 13.3 — optional opt-in for concurrent dispatch. Default False
+    # (serial-only). Engines that mutate shared in-process state MUST leave
+    # this False. The lifecycle dispatcher reads this via
+    # ``getattr(plugin, "concurrent_safe", False)`` so adapters that don't
+    # set the attribute remain serial — full backwards compatibility.
+    concurrent_safe: bool
 
     async def on_phase(self, event: EnchantedEvent, ctx: RequestContext) -> PluginAck:
         """Called by the orchestrator at each subscribed phase. Must return within phase timeout."""

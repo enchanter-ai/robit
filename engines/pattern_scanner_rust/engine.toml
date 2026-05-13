@@ -1,0 +1,20 @@
+name = "pattern-scanner-rust"
+description = "Aho-Corasick CVE + secret pattern scanner. Rust sidecar — proof-of-concept polyglot runtime that runs in parallel with secret-mask + cve-pattern-gate."
+version = "0.1.0"
+phases = ["trust-gate", "post-response"]
+required = false
+budget_tier = "always"
+
+runtime = "sidecar"
+command = "./target/release/pattern-scanner-rust"
+args = []
+env_allowlist = ["PATH"]
+
+[topics]
+subscribes = ["mcp.tool.call.requested", "mcp.tool.result.received"]
+emits = ["pattern-scanner.matched"]
+
+[adapter_metadata]
+language = "rust"
+version = "0.1.0"
+algorithm = "aho-corasick-v0.7"

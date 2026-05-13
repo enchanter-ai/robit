@@ -33,8 +33,15 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 | 5 | Packaging + CLI inspection (`enchanter version|status|engines|conduct|inference|tier|serve`) | ✅ |
 | 5 | MCP server mode (stdio + Streamable-HTTP, engines as MCP tools) | ✅ |
 | 6 | LLM proxy mode (Anthropic + OpenAI + Gemini wire formats, streaming, LiteLLM upstream) | ✅ |
+| 7 | Streaming secret-mask + event-emitter scaffold + 4 engine wire-ins (rate-limiter, cost-ledger, trust-scorer, tool-poisoning) | ✅ |
+| 7 | Polyglot runtime (Python + sidecar via JSON-RPC stdio) | ✅ |
+| 7 | Sidecar trust hardening + JSONL audit log (source-allowlist, topic-allowlist, forgery detection) | ✅ |
+| 7 | **Rust** Aho-Corasick sidecar engine (proof-of-concept polyglot engine) | ✅ |
+| 7 | Inference substrate live wire-in (proxy emits cross-session artifacts) | ✅ |
+| 7 | Byte pass-through fast path (env-gated + key allow-listed + audit JSONL) | ✅ |
+| 7 | Opt-in parallel plugin dispatch (`concurrent_safe = true` in `engine.toml`) | ✅ |
 
-606 tests passing across engines, conduct, lifecycle, inference, integration, MCP server, and proxy suites.
+751 tests passing across engines, conduct, lifecycle, inference, integration, MCP server, proxy, fastpath, events, runtimes, and audit suites.
 
 ## LLM proxy quickstart
 

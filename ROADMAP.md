@@ -150,3 +150,24 @@ Test count: 576 → 606 (+30 proxy-specific). Total: 606 passing. Live HTTP smok
 
 New dependency: `litellm>=1.40` for upstream provider routing.
 
+
+## Wave 13 + 14.1 — Enforcement hardening + polyglot runtime ✅
+
+Managed-split execution across 11 subagents in 7 waves. Net delta:
+616 → 751 tests (+135), version 0.3.0 → 0.4.0.
+
+| Wave | Agents | Files | Status |
+|---|---|---|---|
+| 13.0 — Streaming secret-leak fix + event-emitter scaffold | 1 | `proxy/streaming.py`, `proxy/pipeline.py`, `proxy/events/` (new package) | ✅ |
+| 13.1 — Engine wire-ins (× 4 parallel) | 4 | `proxy/events/{rate_limiter,cost_ledger,trust_scorer,tool_poisoning_scan}.py` + `server.py` cost-cents header | ✅ |
+| 13.1.5 — Polyglot runtime contract | 1 | `loader/manifest.py` (`runtime` field), `loader/runtimes/` (new package: python + sidecar JSON-RPC) | ✅ |
+| 14.1 — Sidecar trust-boundary hardening (× 2 parallel) | 2 | `loader/runtimes/sidecar.py` (source/topic validation), `loader/runtimes/_audit.py` (JSONL log) | ✅ |
+| 13.2E — Rust Aho-Corasick sidecar engine | 1 | `engines/pattern_scanner_rust/` (Cargo crate, 6 patterns ported, 633 KiB binary), `tests/integration/test_rust_sidecar.py` | ✅ |
+| 13.2F — Inference substrate live wire-in | 1 | `proxy/events/inference_substrate.py` (PRE_DISPATCH briefing read + POST_SESSION artifact emit) | ✅ |
+| 13.2G — Byte pass-through fast path (v2) | me (after agent refusal of v1) | `proxy/fastpath.py` (env gate + per-key SHA-256 allow-list + body sniff + JSONL audit), `server.py` hook | ✅ |
+| 13.3 — Opt-in parallel plugin dispatch | 1 | `core/lifecycle.py` (two-bucket dispatch), `core/plugin.py` (Protocol field), manifests | ✅ |
+
+## Delegation-of-authority audit ✅
+
+Sequential two-agent audit produced `docs/architecture/delegation-of-authority.md` and the canonical brief at `docs/architecture/audits/delegation-prompt.md`. The audit's Wave 14 plan (5 entries + deferred bucket) is the source of truth for the next sprint cycle. Wave 14.1 from that plan landed this cycle; 14.0, 14.2, 14.3, 14.4 are deferred.
+

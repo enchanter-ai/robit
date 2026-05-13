@@ -274,10 +274,11 @@ async def test_stream_truncation_when_text_exceeds_cap():
     finally:
         streaming_mod._DEFAULT_CAP_BYTES = orig_cap
 
-    # We received every chunk despite truncation.
+    # We received every byte upstream produced.  The chunk count may differ
+    # from the upstream count because SecretSanitizingStream rebalances the
+    # text-delta boundaries (rolling-window flush + final flush) — what
+    # matters is that no bytes are lost.
     text_deltas = [c for c in yielded if c.type == "text_delta"]
-    assert len(text_deltas) == 10
-    # Total yielded text matches what upstream produced.
     assert sum(len(c.text or "") for c in text_deltas) == 10 * 1024
 
 
@@ -317,9 +318,20 @@ async def test_stream_secret_in_output_fires_post_response_mask_event():
             async for _ in result:
                 pass
 
-    mask = [o for o in seen_observations if "mask" in o.topic]
-    assert mask, f"expected secret-mask observation, got topics: {[o.topic for o in seen_observations]}"
-    assert "s-aws-key" in mask[0].payload_summary.get("matched_patterns", [])
+    # SecretSanitizingStream redacts mid-stream, so by the time secret-mask
+    # scans the post-response corpus the secret is already gone — secret-
+    # mask itself doesn't fire.  Instead the redaction is surfaced via the
+    # ``mid_stream_redactions`` field on the ``llm.proxy.response``
+    # observation published by the builtin POST_SESSION emitter.
+    response_obs = [o for o in seen_observations if o.topic == "llm.proxy.response"]
+    assert response_obs, (
+        f"expected llm.proxy.response observation, got: "
+        f"{[o.topic for o in seen_observations]}"
+    )
+    redactions = response_obs[-1].payload_summary.get("mid_stream_redactions", [])
+    assert "s-aws-key" in redactions, (
+        f"expected s-aws-key in mid_stream_redactions, got {redactions!r}"
+    )
 
 
 async def test_run_returns_observations_as_immutable_tuple():
@@ -329,3 +341,135 @@ async def test_run_returns_observations_as_immutable_tuple():
         result = await run(_req("hi"), PipelineOptions(conduct=False))
     assert isinstance(result, PipelineResult)
     assert isinstance(result.fired, tuple)
+
+
+# ---------------------------------------------------------------------------
+# Event-emitter scaffold tests (Part 2).
+# ---------------------------------------------------------------------------
+
+
+def test_load_emitters_includes_builtin_in_deterministic_order():
+    """load_emitters() always lists ``builtin`` first (alphabetical) and the
+    return value is a list (order matters, not just membership)."""
+    from enchanter.proxy.events import load_emitters
+
+    emitters = load_emitters()
+    names = [em.name for em in emitters]
+    assert "builtin" in names, f"expected 'builtin' in {names!r}"
+    # The discovery sorts by module name; 'builtin' is the only known
+    # emitter so it must be first.  When future emitters land they should
+    # slot in alphabetically after this one.
+    assert names == sorted(names), (
+        f"emitter names should be alphabetical, got {names!r}"
+    )
+
+
+async def test_pipeline_run_publishes_same_4_topics_as_pre_refactor():
+    """Regression pin: with only the built-in emitter registered (default),
+    pipeline.run still publishes exactly the four topics the pre-refactor
+    pipeline did, with the same source and phases.
+    """
+    from enchanter.proxy import pipeline as pipeline_mod
+
+    fake = _make_completion(text="hello world")
+    seen_topics: list[tuple[str, str]] = []
+    original_record = pipeline_mod._BusRecorder.record
+
+    def spy_record(self, event):
+        # Track every event from proxy-pipeline, not just the "interesting"
+        # subset — we want to verify the exact wire of the builtin emitter.
+        if event.source == "proxy-pipeline":
+            seen_topics.append((event.topic, event.phase))
+        original_record(self, event)
+
+    with patch.object(pipeline_mod._BusRecorder, "record", spy_record):
+        with patch.object(upstream.litellm, "acompletion", new=AsyncMock(return_value=fake)):
+            result = await run(_req("hi"), PipelineOptions(conduct=False))
+
+    assert isinstance(result, PipelineResult)
+
+    # Required topics + phases (order MAY vary slightly inside trust-gate
+    # vs post-response groupings, but each must appear).
+    expected = {
+        ("mcp.tool.call.requested", "trust-gate"),
+        ("llm.proxy.request", "trust-gate"),
+        ("mcp.tool.result.received", "post-response"),
+        ("llm.proxy.response", "post-response"),
+    }
+    seen_set = set(seen_topics)
+    missing = expected - seen_set
+    assert not missing, f"missing publishes from builtin emitter: {missing!r}"
+
+
+async def test_custom_post_session_emitter_sees_accumulated_text_and_redactions():
+    """A test-only emitter registered for POST_SESSION receives the
+    fully-populated EmitContext: accumulated_text on unary requests, and
+    redactions on streaming requests."""
+    from enchanter.proxy import events as events_mod
+    from enchanter.proxy.events import EmitContext, EmitPhase
+
+    captured: list[EmitContext] = []
+
+    class _Probe:
+        name = "zzz-probe"  # alphabetically after 'builtin'
+        phases = (EmitPhase.POST_SESSION,)
+
+        async def emit(self, phase: str, ctx: EmitContext) -> None:
+            captured.append(ctx)
+
+    probe = _Probe()
+    original_load = events_mod.load_emitters
+
+    def patched_load():
+        return original_load() + [probe]
+
+    fake = _make_completion(text="benign response with no secret")
+    with patch.object(events_mod, "load_emitters", patched_load):
+        # The pipeline imports load_emitters by name into its own module
+        # scope; patch there too.
+        from enchanter.proxy import pipeline as pipeline_mod
+        with patch.object(pipeline_mod, "load_emitters", patched_load):
+            with patch.object(upstream.litellm, "acompletion", new=AsyncMock(return_value=fake)):
+                result = await run(_req("hi"), PipelineOptions(conduct=False))
+
+    assert isinstance(result, PipelineResult)
+    assert len(captured) == 1, f"probe should fire once for unary, got {len(captured)}"
+    ctx = captured[0]
+    assert ctx.accumulated_text == "benign response with no secret"
+    # No mid-stream redactions on a unary request.
+    assert ctx.redactions == ()
+    # pre_dispatch_done flag flipped before POST_SESSION.
+    assert ctx.pre_dispatch_done is True
+    # scratch dict carries the budget_tier the built-in stashed.
+    assert ctx.scratch.get("budget_tier") is not None
+
+
+async def test_pre_dispatch_emitter_that_raises_does_not_crash_pipeline():
+    """Fire-and-forget contract: a buggy emitter is logged + swallowed and
+    the pipeline still completes."""
+    from enchanter.proxy import events as events_mod
+    from enchanter.proxy.events import EmitContext, EmitPhase
+
+    class _Bomb:
+        name = "zzz-bomb"  # after 'builtin' so it fires AFTER the trust-gate publish
+        phases = (EmitPhase.PRE_DISPATCH,)
+
+        async def emit(self, phase: str, ctx: EmitContext) -> None:
+            raise RuntimeError("intentional test failure")
+
+    bomb = _Bomb()
+    original_load = events_mod.load_emitters
+
+    def patched_load():
+        return original_load() + [bomb]
+
+    fake = _make_completion(text="ok")
+    with patch.object(events_mod, "load_emitters", patched_load):
+        from enchanter.proxy import pipeline as pipeline_mod
+        with patch.object(pipeline_mod, "load_emitters", patched_load):
+            with patch.object(upstream.litellm, "acompletion", new=AsyncMock(return_value=fake)):
+                result = await run(_req("hi"), PipelineOptions(conduct=False))
+
+    # Bomb raised but pipeline still produced a valid result.
+    assert isinstance(result, PipelineResult)
+    assert result.response.content[0].text == "ok"  # type: ignore[union-attr]

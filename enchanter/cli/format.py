@@ -149,6 +149,13 @@ def aggregate_status_text(s: dict[str, Any]) -> str:
     ]
     for k, v in sorted(s.get("tier_defaults", {}).items()):
         lines.append(f"  {k}: {v}")
+    fp = s.get("fastpath", {})
+    lines.append("")
+    lines.append("fast-path bypass:")
+    lines.append(f"  enabled:        {fp.get('enabled', False)}")
+    lines.append(f"  allowed keys:   {fp.get('allowed_keys', 0)}")
+    models = fp.get("allowed_models")
+    lines.append(f"  allowed models: {','.join(models) if models else 'any'}")
     return "\n".join(lines) + "\n"
 
 

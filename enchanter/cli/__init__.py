@@ -421,12 +421,27 @@ def cmd_status(args: argparse.Namespace) -> int:
     except Exception:  # noqa: BLE001
         tier_defaults = {}
 
+    # Fast-path bypass status (proxy mode).
+    try:
+        from enchanter.proxy import fastpath
+        fp_cfg = fastpath.load_config(force_reload=True)
+        fastpath_status = {
+            "enabled": fp_cfg.enabled,
+            "allowed_keys": len(fp_cfg.allowed_key_hashes),
+            "allowed_models": (
+                sorted(fp_cfg.allowed_models) if fp_cfg.allowed_models is not None else None
+            ),
+        }
+    except Exception:  # noqa: BLE001
+        fastpath_status = {"enabled": False, "allowed_keys": 0, "allowed_models": None}
+
     data: dict[str, Any] = {
         "version": version,
         "engine_count": engine_count,
         "conduct_count": conduct_count,
         "inference": inf,
         "tier_defaults": tier_defaults,
+        "fastpath": fastpath_status,
     }
 
     if args.json:

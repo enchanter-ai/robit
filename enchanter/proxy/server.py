@@ -44,6 +44,7 @@ import logging
 from typing import Any, AsyncIterator
 from urllib.parse import parse_qs, urlparse
 
+from . import fastpath
 from .adapters import AdapterParseError, AnthropicAdapter, GeminiAdapter, OpenAIAdapter
 from .canonical import CanonicalChunk, CanonicalRequest, CanonicalResponse
 
@@ -247,6 +248,39 @@ class ProxyServer:
         if family not in self.accept:
             await self._send_simple(writer, 404, "Not Found", b"")
             return
+
+        # 2b. Fast-path bypass — only fires if ENCHANTER_ALLOW_FASTPATH_BYPASS=1
+        # AND the caller's key SHA-256 is in <state_dir>/fastpath-allowlist.json.
+        # SKIPS conduct injection + lifecycle gates. Audit-logged to JSONL.
+        fp_config = fastpath.load_config()
+        if fp_config.enabled:
+            decision = await fastpath.evaluate(method, path, headers, body, fp_config)
+            if decision.eligible:
+                credential = fastpath._extract_auth_credential(headers, decision.upstream_provider or "")
+                key_short = fastpath.short_key_hash(credential)
+                logger.warning(
+                    "fastpath bypass: provider=%s model=%s key=%s body=%d",
+                    decision.upstream_provider, decision.model, key_short, len(body),
+                )
+                status, out_headers, out_body = await fastpath.passthrough(
+                    method, path, headers, body,
+                    upstream_provider=decision.upstream_provider or "",
+                    model=decision.model or "",
+                )
+                await fastpath.record_bypass(
+                    upstream_provider=decision.upstream_provider or "",
+                    key_hash_short=key_short,
+                    model=decision.model or "",
+                    body_size=len(body),
+                    upstream_status=status,
+                )
+                content_type = out_headers.get("Content-Type", "application/json")
+                await self._send_simple(
+                    writer, status, "OK" if 200 <= status < 300 else "Upstream Error",
+                    out_body, content_type=content_type,
+                    extra_headers=(("X-Enchanter-FastPath", "bypass"),),
+                )
+                return
 
         # 3. Parse the body into a CanonicalRequest.
         try:
@@ -601,6 +635,16 @@ def _bus_headers(fired: tuple[Any, ...]) -> tuple[tuple[str, str], ...]:
     )
     if mask_matches:
         headers.append(("X-Enchanter-Mask-Matched", str(mask_matches)))
+    # Wave 13.1 cost-ledger: surface per-request spend.  The cost-ledger
+    # emitter publishes ``cost.ledger.recorded`` and parks cents in the
+    # ``score`` field (the recorder whitelists ``score``, not ``cents``).
+    cost_cents = sum(
+        int(getattr(ob, "payload_summary", {}).get("score", 0))
+        for ob in fired
+        if getattr(ob, "topic", "") == "cost.ledger.recorded"
+    )
+    if cost_cents > 0:
+        headers.append(("X-Enchanter-Cost-Cents", str(cost_cents)))
     return tuple(headers)
 
 

@@ -7,7 +7,11 @@ from typing import AsyncIterator
 import pytest
 
 from enchanter.proxy.canonical import CanonicalChunk
-from enchanter.proxy.streaming import StreamAccumulator, tee_stream
+from enchanter.proxy.streaming import (
+    SecretSanitizingStream,
+    StreamAccumulator,
+    tee_stream,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -127,3 +131,115 @@ async def test_tee_stream_handles_empty_upstream():
     assert received == []
     assert acc.text == ""
     assert not acc.truncated
+
+
+# ---------------------------------------------------------------------------
+# SecretSanitizingStream — mid-stream secret redaction tests
+# ---------------------------------------------------------------------------
+
+
+async def test_sanitizer_empty_stream_yields_nothing_and_records_no_redactions():
+    """Empty source -> no chunks emitted, redactions stay empty."""
+    sanitizer = SecretSanitizingStream(buffer_bytes=64)
+    received = []
+    async for chunk in sanitizer.wrap(_aiter([])):
+        received.append(chunk)
+    assert received == []
+    assert sanitizer.redactions == []
+
+
+async def test_sanitizer_short_clean_stream_passes_through_at_final_flush():
+    """A stream with no secret and total bytes <= buffer_bytes flushes
+    everything verbatim at the final-flush step. No redactions."""
+    sanitizer = SecretSanitizingStream(buffer_bytes=64)
+    chunks = [_text("hello "), _text("world")]
+    received = []
+    async for chunk in sanitizer.wrap(_aiter(chunks)):
+        received.append(chunk)
+    text_deltas = [c for c in received if c.type == "text_delta"]
+    joined = "".join(c.text or "" for c in text_deltas)
+    assert joined == "hello world"
+    assert sanitizer.redactions == []
+
+
+async def test_sanitizer_redacts_single_secret_in_middle_of_stream():
+    """An AWS key in the middle of streamed text is replaced with the
+    pattern's redaction string; the pattern id is recorded."""
+    sanitizer = SecretSanitizingStream(buffer_bytes=64)
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    chunks = [
+        _text(f"prefix text {secret} more text "),
+        _text("X" * 200),
+    ]
+    received = []
+    async for chunk in sanitizer.wrap(_aiter(chunks)):
+        received.append(chunk)
+    joined = "".join(c.text or "" for c in received if c.type == "text_delta")
+    assert secret not in joined
+    assert "AKIA****[REDACTED]" in joined
+    assert "s-aws-key" in sanitizer.redactions
+
+
+async def test_sanitizer_catches_secret_spanning_two_chunks():
+    """The whole point of the rolling buffer: a secret broken across chunk
+    boundaries must still be caught."""
+    sanitizer = SecretSanitizingStream(buffer_bytes=64)
+    chunks = [
+        _text("leading content AKIAIOSF"),
+        _text("ODNN7EXAMPLE trailing content " + "X" * 200),
+    ]
+    received = []
+    async for chunk in sanitizer.wrap(_aiter(chunks)):
+        received.append(chunk)
+    joined = "".join(c.text or "" for c in received if c.type == "text_delta")
+    assert "AKIAIOSFODNN7EXAMPLE" not in joined
+    assert "AKIA****[REDACTED]" in joined
+    assert "s-aws-key" in sanitizer.redactions
+
+
+async def test_sanitizer_secret_at_very_end_caught_by_final_flush():
+    """Secret entirely within the rolling buffer at stream exhaustion is
+    still caught by the final flush."""
+    sanitizer = SecretSanitizingStream(buffer_bytes=512)
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    chunks = [
+        _text(f"the leaked key is {secret}"),
+        CanonicalChunk(type="message_stop"),
+    ]
+    received = []
+    async for chunk in sanitizer.wrap(_aiter(chunks)):
+        received.append(chunk)
+    joined = "".join(c.text or "" for c in received if c.type == "text_delta")
+    assert secret not in joined
+    assert "AKIA****[REDACTED]" in joined
+    assert "s-aws-key" in sanitizer.redactions
+    # message_stop must still be yielded after the final flush.
+    assert received[-1].type == "message_stop"
+
+
+async def test_sanitizer_per_index_buffers_dont_bleed_across_content_blocks():
+    """Two different secrets in two different content-block indices are
+    redacted independently - the buffers don't merge."""
+    sanitizer = SecretSanitizingStream(buffer_bytes=64)
+    secret_a = "AKIAIOSFODNN7EXAMPLE"
+    secret_b = "AKIAIOSFODNN7EXOTHER"
+    chunks = [
+        _text(f"block 0 has {secret_a} ", index=0),
+        _text("X" * 200, index=0),
+        _text(f"block 1 has {secret_b} ", index=1),
+        _text("Y" * 200, index=1),
+    ]
+    received = []
+    async for chunk in sanitizer.wrap(_aiter(chunks)):
+        received.append(chunk)
+    by_index: dict[int, str] = {}
+    for c in received:
+        if c.type == "text_delta":
+            by_index.setdefault(c.index, "")
+            by_index[c.index] += c.text or ""
+    assert secret_a not in by_index.get(0, "")
+    assert secret_b not in by_index.get(1, "")
+    assert "AKIA****[REDACTED]" in by_index[0]
+    assert "AKIA****[REDACTED]" in by_index[1]
+    # Two redactions recorded (one per block).
+    assert sanitizer.redactions.count("s-aws-key") == 2

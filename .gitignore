@@ -59,6 +59,10 @@ ENV/
 
 # Local runtime state — engine-managed, not source
 enchanter/state/
+state/
+
+# Rust target dir (sidecar engine builds)
+engines/*/target/
 
 # OS
 .DS_Store

@@ -68,7 +68,8 @@ Known Limitations
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+import logging
+from dataclasses import dataclass, field, replace
 from typing import AsyncIterator, Union
 
 from enchanter.core import (
@@ -89,8 +90,12 @@ from .canonical import (
     TextPart,
 )
 from .conduct import DEFAULT_PROXY_RULES, apply_conduct_to_request
-from .streaming import StreamAccumulator, tee_stream
+from .events import EmitContext, EmitPhase, EventEmitter, load_emitters
+from .streaming import SecretSanitizingStream, StreamAccumulator, tee_stream
 from .upstream import call_upstream, stream_upstream
+
+
+_log = logging.getLogger(__name__)
 
 
 # Maximum prompt summary length forwarded into trust-gate payloads.  Keeps
@@ -292,6 +297,9 @@ class _BusRecorder:
             "severity",
             "score",
             "reason",
+            # Mid-stream redactions captured by SecretSanitizingStream.
+            # Listed here so Agent E can surface them in response headers.
+            "mid_stream_redactions",
         }
         out: dict = {}
         for key, value in payload.items():
@@ -304,6 +312,28 @@ class _BusRecorder:
             ):
                 out[key] = list(value)
         return out
+
+
+async def _run_emitters(
+    emitters: tuple[EventEmitter, ...],
+    phase: str,
+    ctx: EmitContext,
+) -> None:
+    """Run every emitter that registered for ``phase`` in discovery order.
+
+    Fire-and-forget contract: an emitter that raises is logged and skipped;
+    the chain continues.  This protects the pipeline from a buggy Wave 13.1
+    plugin taking down a proxy request.
+    """
+    for em in emitters:
+        if phase not in em.phases:
+            continue
+        try:
+            await em.emit(phase, ctx)
+        except Exception:
+            _log.exception(
+                "emitter %r raised during phase %s; continuing", em.name, phase
+            )
 
 
 async def _publish_trust_gate(
@@ -467,14 +497,23 @@ async def run(
     # 3. Build the request context.
     ctx = create_request_context(user_prompt=_prompt_summary(effective_req))
 
-    # 4. Pre-publish the trust-gate events so destructive-op-gate / cve-
-    #    pattern-gate evaluate the prompt payload BEFORE the orchestrator's
-    #    own lifecycle.trust-gate event arrives.  The plugin handler dedupes
-    #    on (correlation_id, phase, plugin) so the lifecycle event will be
-    #    a no-op once these acks land.
-    await _publish_trust_gate(bus, ctx, effective_req)
+    # 4. Build the emitter chain and the per-request EmitContext.
+    emitters = tuple(load_emitters())
+    emit_ctx = EmitContext(
+        req=effective_req,
+        bus=bus,
+        correlation_id=ctx.correlation_id,
+        session_id=ctx.session_id,
+    )
+    emit_ctx.scratch["budget_tier"] = ctx.budget_tier
 
-    # 5. Dispatch closure — the only place call_upstream is reachable.
+    # 5. Fire PRE_DISPATCH emitters.  The built-in emitter publishes the
+    #    trust-gate events here, so destructive-op-gate / cve-pattern-gate
+    #    evaluate the prompt BEFORE the orchestrator's lifecycle.trust-gate.
+    await _run_emitters(emitters, EmitPhase.PRE_DISPATCH, emit_ctx)
+    emit_ctx = replace(emit_ctx, pre_dispatch_done=True)
+
+    # 6. Dispatch closure — the only place call_upstream is reachable.
     captured: dict = {}
 
     async def dispatch(ctx) -> CanonicalResponse:
@@ -482,17 +521,20 @@ async def run(
         captured["resp"] = resp
         # Inject the post-response payload BEFORE the orchestrator advances
         # to the post-response phase so secret-mask sees real content.
-        await _publish_post_response(
-            bus,
-            ctx,
-            result_text=_joined_response_text(resp),
-            input_tokens=resp.usage.input_tokens,
-            output_tokens=resp.usage.output_tokens,
-            model=resp.model,
+        # We do this by firing POST_SESSION emitters here (NOT after orch.run
+        # returns) — secret-mask is wired to the lifecycle post-response
+        # phase and must observe the result before the orchestrator's phase
+        # ack tracker waits for it.
+        nonlocal emit_ctx
+        emit_ctx = replace(
+            emit_ctx,
+            response=resp,
+            accumulated_text=_joined_response_text(resp),
         )
+        await _run_emitters(emitters, EmitPhase.POST_SESSION, emit_ctx)
         return resp
 
-    # 6. Run the 7-phase lifecycle; trap veto, propagate everything else.
+    # 7. Run the 7-phase lifecycle; trap veto, propagate everything else.
     try:
         await orch.run(ctx, dispatch)
     except SecurityVetoError as exc:
@@ -551,19 +593,31 @@ async def stream(
 
     ctx = create_request_context(user_prompt=_prompt_summary(effective_req))
 
+    # Build the emitter chain + EmitContext for this request.
+    emitters = tuple(load_emitters())
+    emit_ctx = EmitContext(
+        req=effective_req,
+        bus=bus,
+        correlation_id=ctx.correlation_id,
+        session_id=ctx.session_id,
+    )
+    emit_ctx.scratch["budget_tier"] = ctx.budget_tier
+
     # Synchronous trust-gate check — drive enough of the orchestrator to learn
     # whether anyone vetoes BEFORE we open the upstream stream.  We can't run
     # the full lifecycle here because dispatch needs to feed chunks back to
-    # the caller; instead we publish the trust-gate events ourselves and ask
-    # the bus's ack tracker whether the required gates voted veto.
-    await _publish_trust_gate(bus, ctx, effective_req)
+    # the caller; instead we fire PRE_DISPATCH emitters (which publish the
+    # trust-gate events) and ask the bus's ack tracker whether the required
+    # gates voted veto.
+    await _run_emitters(emitters, EmitPhase.PRE_DISPATCH, emit_ctx)
+    emit_ctx = replace(emit_ctx, pre_dispatch_done=True)
 
     # Inspect ack state for each required trust-gate plugin.
     veto = _check_trust_gate_veto(bus, ctx, orch)
     if veto is not None:
         return veto
 
-    return _stream_body(bus, orch, ctx, effective_req, recorder)
+    return _stream_body(bus, orch, ctx, effective_req, recorder, emitters, emit_ctx)
 
 
 def _check_trust_gate_veto(
@@ -617,6 +671,8 @@ async def _stream_body(
     ctx,
     req: CanonicalRequest,
     recorder: _BusRecorder,
+    emitters: tuple[EventEmitter, ...] = (),
+    emit_ctx: EmitContext | None = None,
 ) -> AsyncIterator[CanonicalChunk]:
     """The async-generator half of :func:`stream`.
 
@@ -632,6 +688,7 @@ async def _stream_body(
     published.
     """
     accumulator = StreamAccumulator()
+    sanitizer = SecretSanitizingStream()
     truncation_signalled = False
 
     # We bypass orch.run() and instead drive the lifecycle phases manually so
@@ -658,12 +715,27 @@ async def _stream_body(
             advisory = tuple(p.name for p in subscribers if not p.required)
             all_names = required + advisory
 
+            # Wave 13.3 — drive the two-bucket plugin dispatch directly. Prior
+            # to Wave 13.3 the bus publish above triggered plugin handlers via
+            # ``lifecycle.<phase>`` subscriptions; the orchestrator now owns
+            # that dispatch, so we delegate to ``_dispatch_phase``. The
+            # ``dispatch`` phase is special-cased below (we tee the upstream
+            # stream there), so skip the direct dispatch for that phase.
+            if phase != "dispatch":
+                await orch._dispatch_phase(phase, phase_event, subscribers)  # type: ignore[attr-defined]
+
             if phase == "dispatch":
-                # Stream the upstream response.  Each chunk is fed to the
-                # accumulator (for post-response scan) and yielded to the
-                # consumer.  No latency added beyond a single bytearray copy.
+                # Wrap the upstream with the SecretSanitizingStream (mid-
+                # stream redactor) BEFORE the tee.  The sanitizer holds a
+                # rolling K-byte window per content-block index, flushes
+                # safe prefixes after a regex sweep, and surfaces matched
+                # pattern IDs in ``sanitizer.redactions`` once exhausted.
+                # The tee_stream then feeds the SANITISED chunks to the
+                # accumulator (so post-response scans see redacted text)
+                # and yields them to the client.
                 src = stream_upstream(req)
-                async for chunk in tee_stream(src, accumulator):
+                sanitised = sanitizer.wrap(src)
+                async for chunk in tee_stream(sanitised, accumulator):
                     # Emit a one-shot truncation bus event the first time
                     # the cap is hit.
                     if accumulator.truncated and not truncation_signalled:
@@ -681,16 +753,25 @@ async def _stream_body(
                     yield chunk
 
                 # Once the stream finishes we know the full accumulated text
-                # and can publish the post-response events so secret-mask
-                # scans before the orchestrator hits the post-response phase.
-                await _publish_post_response(
-                    bus,
-                    ctx,
-                    result_text=accumulator.text,
-                    input_tokens=0,  # upstream usage isn't aggregated client-side
-                    output_tokens=0,
-                    model=req.model,
-                )
+                # and can fire POST_SESSION emitters so secret-mask scans
+                # before the orchestrator hits the post-response phase.
+                if emit_ctx is not None:
+                    emit_ctx = replace(
+                        emit_ctx,
+                        accumulated_text=accumulator.text,
+                        redactions=tuple(sanitizer.redactions),
+                    )
+                    await _run_emitters(emitters, EmitPhase.POST_SESSION, emit_ctx)
+                else:
+                    # Backwards-compat path for older test callers.
+                    await _publish_post_response(
+                        bus,
+                        ctx,
+                        result_text=accumulator.text,
+                        input_tokens=0,
+                        output_tokens=0,
+                        model=req.model,
+                    )
                 continue
 
             if not all_names:
