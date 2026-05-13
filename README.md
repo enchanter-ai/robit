@@ -30,7 +30,7 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 | 2 | Conduct injection layer | ✅ |
 | 3 | Inference substrate wire-in | ✅ |
 | 4 | First engine: `deep-research` (6-phase pipeline) | ✅ |
-| 5 | Packaging + CLI inspection (`enchanter-insights version|status|engines|conduct|inference|tier|serve`) | ✅ |
+| 5 | Packaging + CLI inspection (`insighter version|status|engines|conduct|inference|tier|serve`) | ✅ |
 | 5 | MCP server mode (stdio + Streamable-HTTP, engines as MCP tools) | ✅ |
 | 6 | LLM proxy mode (Anthropic + OpenAI + Gemini wire formats, streaming, LiteLLM upstream) | ✅ |
 | 7 | Streaming secret-mask + event-emitter scaffold + 4 engine wire-ins (rate-limiter, cost-ledger, trust-scorer, tool-poisoning) | ✅ |
@@ -43,15 +43,15 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 
 **0.5.0** — Two binaries:
 - `enchanter` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips)
-- `enchanter-insights` — runtime inspector (engines, conduct, inference, tier, audit, serve)
+- `insighter` — runtime inspector (engines, conduct, inference, tier, audit, serve)
 
 1029 tests passing across engines, conduct, lifecycle, inference, integration, MCP server, proxy, fastpath, events, runtimes, audit, agent core, tools, widgets, MCP client, plan mode, and subagents suites.
 
 ## LLM proxy quickstart
 
-> **CLI rename (0.5.0):** the inspector binary is now `enchanter-insights`. The bare `enchanter` name is reserved for the coding-agent CLI shipping in 0.5.0 (Wave 15.0+) and currently has no entry point.
+> **CLI binaries (0.5.0):** `enchanter` is the coding-agent CLI; `insighter` is the runtime inspector (engines, conduct, inference, proxy server).
 
-`enchanter-insights serve --proxy 127.0.0.1:8000` runs a wire-format proxy that accepts requests on three endpoints and routes upstream via LiteLLM:
+`insighter serve --proxy 127.0.0.1:8000` runs a wire-format proxy that accepts requests on three endpoints and routes upstream via LiteLLM:
 
 - `POST /v1/messages` — Anthropic Messages API shape
 - `POST /v1/chat/completions` — OpenAI Chat Completions shape (also covers OpenAI-compatible providers: Groq, Together, Mistral, Ollama, vLLM, OpenRouter)

@@ -1,24 +1,24 @@
-"""Tests for enchanter.insights_cli — calls main() directly without subprocess.
+"""Tests for enchanter.insighter — calls main() directly without subprocess.
 
 All tests use capsys to capture stdout/stderr and inspect return codes.
 
 Coverage:
-    T01  enchanter-insights version          → 0, prints version string
-    T02  enchanter-insights (no args)        → 1, prints help
-    T03  enchanter-insights engines list     → 0, lists 14 engines
-    T04  enchanter-insights engines list --json → 0, valid JSON list of 14
-    T05  enchanter-insights engines show destructive-op-gate → 0, shows manifest fields
-    T06  enchanter-insights engines show nonexistent → 1, clear error message
-    T07  enchanter-insights conduct list     → 0, at least 10 conduct modules
-    T08  enchanter-insights conduct list --json → 0, valid JSON list
-    T09  enchanter-insights conduct show discipline → 0, prints body text
-    T10  enchanter-insights conduct show nonexistent → 1, clear error
-    T11  enchanter-insights tier route orchestrator → 0, prints claude-opus-4-7
-    T12  enchanter-insights tier route bogus_class → 1
-    T13  enchanter-insights status           → 0, non-empty aggregate output
-    T14  enchanter-insights status --json    → 0, valid JSON with expected keys
-    T15  enchanter-insights inference status → 0, prints summary
-    T16  enchanter-insights inference reconcile → 0 (handles empty state dir gracefully)
+    T01  insighter version          → 0, prints version string
+    T02  insighter (no args)        → 1, prints help
+    T03  insighter engines list     → 0, lists 14 engines
+    T04  insighter engines list --json → 0, valid JSON list of 14
+    T05  insighter engines show destructive-op-gate → 0, shows manifest fields
+    T06  insighter engines show nonexistent → 1, clear error message
+    T07  insighter conduct list     → 0, at least 10 conduct modules
+    T08  insighter conduct list --json → 0, valid JSON list
+    T09  insighter conduct show discipline → 0, prints body text
+    T10  insighter conduct show nonexistent → 1, clear error
+    T11  insighter tier route orchestrator → 0, prints claude-opus-4-7
+    T12  insighter tier route bogus_class → 1
+    T13  insighter status           → 0, non-empty aggregate output
+    T14  insighter status --json    → 0, valid JSON with expected keys
+    T15  insighter inference status → 0, prints summary
+    T16  insighter inference reconcile → 0 (handles empty state dir gracefully)
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import json
 
 import pytest
 
-from enchanter.insights_cli import main
+from enchanter.insighter import main
 
 
 # ─── T01: version ─────────────────────────────────────────────────────────────

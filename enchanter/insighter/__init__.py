@@ -1,25 +1,25 @@
-"""enchanter.insights_cli — command-line interface for the enchanter-agent runtime.
+"""enchanter.insighter — command-line interface for the enchanter-agent runtime.
 
 Entry point declared in pyproject.toml::
 
     [project.scripts]
-    enchanter-insights = "enchanter.insights_cli:main"
+    insighter = "enchanter.insighter:main"
 
 The ``enchanter`` binary name is reserved for the 0.5.0 coding-agent CLI
 (Wave 15.0+). This module owns the inspection surface only.
 
 Subcommand tree::
 
-    enchanter-insights version
-    enchanter-insights status [--json]
-    enchanter-insights engines list [--json]
-    enchanter-insights engines show <name> [--json]
-    enchanter-insights conduct list [--json]
-    enchanter-insights conduct show <name>
-    enchanter-insights inference status [--json]
-    enchanter-insights inference reconcile
-    enchanter-insights tier route <task_class>
-    enchanter-insights serve [--stdio | --http HOST:PORT | --proxy HOST:PORT]
+    insighter version
+    insighter status [--json]
+    insighter engines list [--json]
+    insighter engines show <name> [--json]
+    insighter conduct list [--json]
+    insighter conduct show <name>
+    insighter inference status [--json]
+    insighter inference reconcile
+    insighter tier route <task_class>
+    insighter serve [--stdio | --http HOST:PORT | --proxy HOST:PORT]
                              [--path PATH] [--accept LIST] [--no-conduct]
 
 Exit codes:
@@ -36,7 +36,7 @@ import sys
 from typing import Any
 
 import enchanter
-from enchanter.insights_cli.format import (
+from enchanter.insighter.format import (
     aggregate_status_json,
     aggregate_status_text,
     conduct_list_json,
@@ -459,7 +459,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="enchanter-insights",
+        prog="insighter",
         description="enchanter-agent runtime inspection CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -629,7 +629,7 @@ def main(argv: list[str] | None = None) -> int:
     # Noun+verb commands.
     verb: str | None = getattr(args, "verb", None)
     if not verb:
-        # User typed `enchanter-insights engines` without a verb — print sub-help.
+        # User typed `insighter engines` without a verb — print sub-help.
         # Find the subparser for this noun and print its help.
         # argparse doesn't expose sub-parsers easily; use a manual lookup.
         _print_subcommand_help(parser, noun)

@@ -25,8 +25,9 @@ dev = [
 ]
 
 [project.scripts]
-# The inspector lives under `enchanter-insights` (renamed in Wave 15.rename).
-enchanter-insights = "enchanter.insights_cli:main"
+# The inspector binary is `insighter` (the inspector-side CLI). The
+# inspector package lives at `enchanter.insighter`.
+insighter = "enchanter.insighter:main"
 # `enchanter` is the coding-agent CLI — Textual REPL with enchanter
 # enforcement baked in. Wave 15.0 ships the foundation skeleton; Wave 15.1+
 # extend it.
