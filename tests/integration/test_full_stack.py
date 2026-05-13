@@ -9,7 +9,7 @@ Catches:
 - Subscription patterns that no engine emits to (dead subs)
 - Veto / ack flow under realistic event volume
 - Conduct loader + composer producing valid XML against the real
-  enchanter-foundations corpus
+  vis corpus
 - The full chain: discover → register → run → produce derived events
 """
 
@@ -330,11 +330,11 @@ async def test_no_dead_subscriptions(registry):
                 )
 
 
-# ─── Conduct loader + composer end-to-end against real foundations ──────────
+# ─── Conduct loader + composer end-to-end against real vis ──────────
 
 
 def test_conduct_loader_composer_produces_valid_xml():
-    """Load real conduct modules from enchanter-foundations and produce
+    """Load real conduct modules from vis and produce
     well-formed system-prompt XML."""
     from enchanter.conduct import load_conduct
     from enchanter.composer import compose_conduct_xml

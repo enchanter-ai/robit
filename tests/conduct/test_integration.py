@@ -1,7 +1,7 @@
-"""Integration test — loads from the REAL enchanter-foundations conduct files.
+"""Integration test — loads from the REAL vis conduct files.
 
 This test is intentionally NOT hermetic: it exercises the actual on-disk
-conduct modules in ``enchanter-foundations/packages/*/conduct/*.md``.
+conduct modules in ``vis/packages/*/conduct/*.md``.
 It is the single integration gate that confirms the loader works end-to-end
 against the live source tree.
 """
@@ -13,10 +13,10 @@ from pathlib import Path
 import pytest
 
 from enchanter.conduct import ConductRule, load_conduct
-from enchanter.conduct._paths import DEFAULT_FOUNDATIONS_ROOT
+from enchanter.conduct._paths import DEFAULT_VIS_ROOT
 
 # ---------------------------------------------------------------------------
-# Known good packages in enchanter-foundations at the time of writing.
+# Known good packages in vis at the time of writing.
 # The loader must resolve at least one file per present package.
 # ---------------------------------------------------------------------------
 _KNOWN_PACKAGES = frozenset(
@@ -26,14 +26,14 @@ _KNOWN_PACKAGES = frozenset(
 
 @pytest.fixture(scope="module")
 def real_rules() -> list[ConductRule]:
-    """Load conduct rules from the real enchanter-foundations tree."""
-    return load_conduct(root=DEFAULT_FOUNDATIONS_ROOT)
+    """Load conduct rules from the real vis tree."""
+    return load_conduct(root=DEFAULT_VIS_ROOT)
 
 
 def test_at_least_10_rules_loaded(real_rules: list[ConductRule]):
     assert len(real_rules) >= 10, (
         f"Expected ≥10 ConductRule objects; got {len(real_rules)}. "
-        f"Check that DEFAULT_FOUNDATIONS_ROOT={DEFAULT_FOUNDATIONS_ROOT} is correct."
+        f"Check that DEFAULT_VIS_ROOT={DEFAULT_VIS_ROOT} is correct."
     )
 
 
@@ -62,10 +62,10 @@ def test_every_rule_has_known_package(real_rules: list[ConductRule]):
     )
 
 
-def test_default_foundations_root_resolves(real_rules: list[ConductRule]):
+def test_default_vis_root_resolves(real_rules: list[ConductRule]):
     """Sanity-check that the default path constant actually points somewhere real."""
-    assert DEFAULT_FOUNDATIONS_ROOT.is_dir(), (
-        f"DEFAULT_FOUNDATIONS_ROOT does not exist: {DEFAULT_FOUNDATIONS_ROOT}"
+    assert DEFAULT_VIS_ROOT.is_dir(), (
+        f"DEFAULT_VIS_ROOT does not exist: {DEFAULT_VIS_ROOT}"
     )
 
 

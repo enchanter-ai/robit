@@ -6,12 +6,12 @@ rather than monkey-patching ``loader.py`` internals.
 
 from pathlib import Path
 
-# Canonical location of the enchanter-foundations package tree.
-# Expected structure: <DEFAULT_FOUNDATIONS_ROOT>/packages/<pkg>/conduct/*.md
-DEFAULT_FOUNDATIONS_ROOT: Path = (
+# Canonical location of the vis package tree.
+# Expected structure: <DEFAULT_VIS_ROOT>/packages/<pkg>/conduct/*.md
+DEFAULT_VIS_ROOT: Path = (
     Path(__file__).resolve().parent  # enchanter/conduct/
     .parent                           # enchanter/
     .parent                           # agent/
     .parent                           # enchanter-ai/
-    / "foundations"
+    / "vis"
 )

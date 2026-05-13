@@ -83,7 +83,7 @@ Stateful algorithms. Each engine carries its own state machine.
 
 | Component | Target | Complexity |
 |---|---|---|
-| Conduct loader from enchanter-foundations | `enchanter/conduct/loader.py` | small |
+| Conduct loader from vis | `enchanter/conduct/loader.py` | small |
 | Per-rule `enforcement:` tag parser | `enchanter/conduct/tags.py` | small |
 | System-prompt XML composer (prompt-injection layer) | `enchanter/conduct/composer.py` | medium |
 | Code-enforced rules registry → middleware plugins | `enchanter/conduct/middleware.py` | medium |

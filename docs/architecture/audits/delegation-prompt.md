@@ -111,7 +111,7 @@ back in the executive summary — do not hand-wave around it.
 ### Failure-mode and audit authorities
 
 - The 21-code failure taxonomy (referenced in agent CLAUDE.md and
-  wixie's `foundations/packages/core/conduct/failure-modes.md`)
+  wixie's `vis/packages/core/conduct/failure-modes.md`)
 - `enchanter/inference/engine.py` and the wixie inference substrate
 - The DEPLOY bar criteria (declared in wixie CLAUDE.md)
 

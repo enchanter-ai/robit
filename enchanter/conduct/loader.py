@@ -4,7 +4,7 @@ Usage::
 
     from enchanter.conduct.loader import load_conduct
 
-    rules = load_conduct()          # reads from enchanter-foundations default
+    rules = load_conduct()          # reads from vis default
     rules = load_conduct(root=tmp)  # for tests or alternate roots
 
 The loader walks ``<root>/packages/*/conduct/*.md``, parses optional YAML
@@ -20,11 +20,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from enchanter.conduct._paths import DEFAULT_FOUNDATIONS_ROOT
+from enchanter.conduct._paths import DEFAULT_VIS_ROOT
 from enchanter.conduct.frontmatter import parse_frontmatter
 from enchanter.conduct.types import ConductFrontmatterError, ConductRule, EnforcementMode
 
-# The glob pattern for conduct files relative to the foundations root.
+# The glob pattern for conduct files relative to the vis_root root.
 _CONDUCT_GLOB = "packages/*/conduct/*.md"
 
 _VALID_ENFORCEMENT: frozenset[str] = frozenset({"code", "prompt", "hybrid"})
@@ -34,8 +34,8 @@ def load_conduct(root: Path | None = None) -> list[ConductRule]:
     """Load all conduct modules from *root*.
 
     Args:
-        root: Root directory of an ``enchanter-foundations``-layout tree.
-              Defaults to :data:`~enchanter.conduct._paths.DEFAULT_FOUNDATIONS_ROOT`.
+        root: Root directory of an ``vis``-layout tree.
+              Defaults to :data:`~enchanter.conduct._paths.DEFAULT_VIS_ROOT`.
               The function searches ``<root>/packages/*/conduct/*.md``.
 
     Returns:
@@ -48,13 +48,13 @@ def load_conduct(root: Path | None = None) -> list[ConductRule]:
             from :func:`~enchanter.conduct.frontmatter.parse_frontmatter` when
             a file has a malformed frontmatter block.
     """
-    foundations = root if root is not None else DEFAULT_FOUNDATIONS_ROOT
-    foundations = Path(foundations)
+    vis_root = root if root is not None else DEFAULT_VIS_ROOT
+    vis_root = Path(vis_root)
 
     rules: list[ConductRule] = []
 
-    for md_path in sorted(foundations.glob(_CONDUCT_GLOB)):
-        rule = _load_file(md_path, foundations)
+    for md_path in sorted(vis_root.glob(_CONDUCT_GLOB)):
+        rule = _load_file(md_path, vis_root)
         rules.append(rule)
 
     rules.sort(key=lambda r: (r.package, r.name))
@@ -66,7 +66,7 @@ def load_conduct(root: Path | None = None) -> list[ConductRule]:
 # ---------------------------------------------------------------------------
 
 
-def _load_file(path: Path, foundations: Path) -> ConductRule:
+def _load_file(path: Path, vis_root: Path) -> ConductRule:
     """Parse a single conduct Markdown file into a ConductRule."""
     text = path.read_text(encoding="utf-8")
     meta, body = parse_frontmatter(text, path=path)
@@ -74,7 +74,7 @@ def _load_file(path: Path, foundations: Path) -> ConductRule:
     name = _resolve_name(meta, path)
     enforcement = _resolve_enforcement(meta, path)
     tags = _resolve_tags(meta)
-    package = _resolve_package(path, foundations)
+    package = _resolve_package(path, vis_root)
 
     return ConductRule(
         name=name,
@@ -116,15 +116,15 @@ def _resolve_tags(meta: dict[str, Any]) -> tuple[str, ...]:
     return (str(raw).strip(),)
 
 
-def _resolve_package(path: Path, foundations: Path) -> str:
+def _resolve_package(path: Path, vis_root: Path) -> str:
     """Extract the package name from the path.
 
-    Expected layout: ``<foundations>/packages/<package>/conduct/<name>.md``
+    Expected layout: ``<vis_root>/packages/<package>/conduct/<name>.md``
     Returns the ``<package>`` segment, or an empty string if the path does
     not match the expected depth.
     """
     try:
-        rel = path.relative_to(foundations)
+        rel = path.relative_to(vis_root)
     except ValueError:
         return ""
 
