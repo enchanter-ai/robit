@@ -13,14 +13,17 @@ Public API:
 """
 
 from .anthropic_client import AnthropicClient
+from .chatgpt_client import ChatGptClient, ConfigurationError
 from .mock_client import MockLlmClient
 from .protocol import LlmClient
 from .types import CompletionRequest, CompletionResponse, Message
 
 __all__ = [
     "AnthropicClient",
+    "ChatGptClient",
     "CompletionRequest",
     "CompletionResponse",
+    "ConfigurationError",
     "LlmClient",
     "Message",
     "MockLlmClient",

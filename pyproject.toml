@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "enchanter-agent"
-version = "0.5.0"
+version = "0.6.0"
 description = "Enforcement-first MCP-aware agent runtime. Port of the TypeScript MCP client architecture into Python with conduct injection and inference substrate."
 readme = "README.md"
 requires-python = ">=3.11"

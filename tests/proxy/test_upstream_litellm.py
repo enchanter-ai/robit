@@ -396,6 +396,131 @@ async def test_upstream_error_wraps_provider_exception():
     assert "rate limited" in err.message
 
 
+# ---------------------------------------------------------------------------
+# Pass-through auth — Wave 16.1.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_absent_metadata_adds_no_extra_kwargs():
+    """Without a stashed auth blob, kwargs match the legacy shape and
+    LiteLLM resolves credentials from env vars as before."""
+    fake = _make_completion(text="ok")
+    with patch.object(
+        upstream.litellm,
+        "acompletion",
+        new=AsyncMock(return_value=fake),
+    ) as mocked:
+        await call_upstream(_basic_req())
+
+    kwargs = mocked.await_args.kwargs
+    assert "api_key" not in kwargs
+    assert "extra_headers" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_anthropic_api_key_forwards_api_key_kwarg():
+    req = _basic_req(
+        model="anthropic/claude-3-5-sonnet-20241022",
+        metadata={
+            "_enchanter_passthrough_auth": {
+                "kind": "anthropic-api-key",
+                "value": "sk-ant-test-123",
+            }
+        },
+    )
+    with patch.object(
+        upstream.litellm,
+        "acompletion",
+        new=AsyncMock(return_value=_make_completion()),
+    ) as mocked:
+        await call_upstream(req)
+
+    kwargs = mocked.await_args.kwargs
+    assert kwargs["api_key"] == "sk-ant-test-123"
+    assert "extra_headers" not in kwargs
+    # The internal sentinel must not leak into the LiteLLM metadata bag.
+    assert "metadata" not in kwargs or (
+        "_enchanter_passthrough_auth" not in kwargs.get("metadata", {})
+    )
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_openai_bearer_forwards_api_key_kwarg():
+    req = _basic_req(
+        model="gpt-4o-mini",
+        metadata={
+            "_enchanter_passthrough_auth": {
+                "kind": "openai-bearer",
+                "value": "sk-openai-test-xyz",
+            }
+        },
+    )
+    with patch.object(
+        upstream.litellm,
+        "acompletion",
+        new=AsyncMock(return_value=_make_completion()),
+    ) as mocked:
+        await call_upstream(req)
+
+    kwargs = mocked.await_args.kwargs
+    assert kwargs["api_key"] == "sk-openai-test-xyz"
+    assert "extra_headers" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_gemini_api_key_forwards_api_key_kwarg():
+    req = _basic_req(
+        model="gemini/gemini-1.5-pro",
+        metadata={
+            "_enchanter_passthrough_auth": {
+                "kind": "gemini-api-key",
+                "value": "AIza-test-gemini-key",
+            }
+        },
+    )
+    with patch.object(
+        upstream.litellm,
+        "acompletion",
+        new=AsyncMock(return_value=_make_completion()),
+    ) as mocked:
+        await call_upstream(req)
+
+    kwargs = mocked.await_args.kwargs
+    assert kwargs["api_key"] == "AIza-test-gemini-key"
+    assert "extra_headers" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_anthropic_oauth_sets_extra_headers_bearer():
+    """Anthropic OAuth bearer tokens go on extra_headers; LiteLLM still
+    requires an api_key kwarg, so we supply a placeholder.
+
+    # TODO: verify LiteLLM extra_headers acceptance across versions.
+    """
+    req = _basic_req(
+        model="anthropic/claude-3-5-sonnet-20241022",
+        metadata={
+            "_enchanter_passthrough_auth": {
+                "kind": "anthropic-oauth",
+                "value": "sk-ant-oat-XXXX",
+            }
+        },
+    )
+    with patch.object(
+        upstream.litellm,
+        "acompletion",
+        new=AsyncMock(return_value=_make_completion()),
+    ) as mocked:
+        await call_upstream(req)
+
+    kwargs = mocked.await_args.kwargs
+    assert kwargs["api_key"] == "sk-ant-placeholder"
+    assert kwargs["extra_headers"] == {
+        "Authorization": "Bearer sk-ant-oat-XXXX"
+    }
+
+
 @pytest.mark.asyncio
 async def test_upstream_error_falls_back_to_unknown_provider():
     boom = RuntimeError("nope")

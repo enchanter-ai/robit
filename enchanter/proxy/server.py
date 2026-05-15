@@ -41,11 +41,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import replace
 from typing import Any, AsyncIterator
 from urllib.parse import parse_qs, urlparse
 
 from . import fastpath
-from .adapters import AdapterParseError, AnthropicAdapter, GeminiAdapter, OpenAIAdapter
+from .adapters import (
+    AdapterParseError,
+    AnthropicAdapter,
+    CodexAdapter,
+    GeminiAdapter,
+    OpenAIAdapter,
+)
 from .canonical import CanonicalChunk, CanonicalRequest, CanonicalResponse
 
 logger = logging.getLogger(__name__)
@@ -62,9 +69,15 @@ _ADAPTER_FAMILY: dict[type, str] = {
     AnthropicAdapter: "anthropic",
     OpenAIAdapter: "openai",
     GeminiAdapter: "gemini",
+    CodexAdapter: "codex",
 }
 
-_ADAPTERS: tuple[type, ...] = (AnthropicAdapter, OpenAIAdapter, GeminiAdapter)
+_ADAPTERS: tuple[type, ...] = (
+    AnthropicAdapter,
+    OpenAIAdapter,
+    GeminiAdapter,
+    CodexAdapter,
+)
 
 
 class BodyTooLargeError(Exception):
@@ -109,6 +122,8 @@ _FAMILY_ERROR_ENVELOPE = {
     "anthropic": _anthropic_error_envelope,
     "openai": _openai_error_envelope,
     "gemini": _gemini_error_envelope,
+    # Codex talks the OpenAI error envelope shape (Responses API is OpenAI-shaped).
+    "codex": _openai_error_envelope,
 }
 
 
@@ -149,13 +164,15 @@ class ProxyServer:
         host: str = "127.0.0.1",
         port: int = 0,
         *,
-        accept: frozenset[str] = frozenset({"anthropic", "openai", "gemini"}),
+        accept: frozenset[str] = frozenset({"anthropic", "openai", "gemini", "codex"}),
         conduct: bool = True,
+        passthrough_auth: bool = False,
     ) -> None:
         self.host = host
         self.port = port
         self.accept = frozenset(accept)
         self.conduct = conduct
+        self.passthrough_auth = passthrough_auth
         self._server: asyncio.base_events.Server | None = None
 
     # ------------------------------------------------------------------
@@ -308,6 +325,21 @@ class ProxyServer:
                 content_type="application/json",
             )
             return
+
+        # 3b. Pass-through auth — stash inbound credential on metadata so
+        # upstream.py can forward it to LiteLLM as api_key / extra_headers.
+        # Only fires when explicitly enabled at the server level; default
+        # behavior continues to rely on operator-set env vars.
+        if self.passthrough_auth:
+            inbound_auth = _extract_inbound_auth(headers, family)
+            if inbound_auth is not None:
+                canonical_req = replace(
+                    canonical_req,
+                    metadata={
+                        **canonical_req.metadata,
+                        "_enchanter_passthrough_auth": inbound_auth,
+                    },
+                )
 
         # 4. Resolve per-request conduct override (?conduct=off).
         per_request_conduct = self._resolve_conduct(path)
@@ -605,6 +637,50 @@ class ProxyServer:
 # ---------------------------------------------------------------------------
 
 
+def _extract_inbound_auth(
+    headers: dict[str, str], family: str
+) -> dict[str, str] | None:
+    """Extract a host-agent's auth credential from inbound headers.
+
+    Header keys are lowercased by the HTTP parser. Returns a dict with
+    ``kind`` and ``value`` keys, or ``None`` if no recognizable auth
+    header is present for the given family.
+
+    Honesty note: the returned dict contains the credential verbatim.
+    Callers must not log it. ``upstream.py`` hands it to LiteLLM and
+    never includes it in error envelopes; ``server.py`` does not log
+    metadata payloads.
+    """
+    if family == "anthropic":
+        api_key = headers.get("x-api-key")
+        if api_key:
+            return {"kind": "anthropic-api-key", "value": api_key}
+        bearer = headers.get("authorization", "")
+        if bearer.lower().startswith("bearer "):
+            return {"kind": "anthropic-oauth", "value": bearer[7:].strip()}
+        return None
+    if family == "openai":
+        bearer = headers.get("authorization", "")
+        if bearer.lower().startswith("bearer "):
+            return {"kind": "openai-bearer", "value": bearer[7:].strip()}
+        return None
+    if family == "codex":
+        # Codex CLI sends either an API key (`sk-…`) or a ChatGPT JWT
+        # (`eyJ…`) under Authorization: Bearer. The proxy forwards
+        # verbatim; URL override for the ChatGPT-internal endpoint is a
+        # known v1 limitation (see adapters/codex.py).
+        bearer = headers.get("authorization", "")
+        if bearer.lower().startswith("bearer "):
+            return {"kind": "openai-bearer", "value": bearer[7:].strip()}
+        return None
+    if family == "gemini":
+        api_key = headers.get("x-goog-api-key")
+        if api_key:
+            return {"kind": "gemini-api-key", "value": api_key}
+        return None
+    return None
+
+
 def _is_veto(value: Any) -> bool:
     """Duck-type a :class:`enchanter.proxy.pipeline.VetoResult`.
 
@@ -669,8 +745,9 @@ async def serve_proxy(
     host: str = "127.0.0.1",
     port: int = 0,
     *,
-    accept: frozenset[str] = frozenset({"anthropic", "openai", "gemini"}),
+    accept: frozenset[str] = frozenset({"anthropic", "openai", "gemini", "codex"}),
     conduct: bool = True,
+    passthrough_auth: bool = False,
 ) -> None:
     """Start a :class:`ProxyServer` and serve forever.
 
@@ -678,7 +755,13 @@ async def serve_proxy(
     before the exception propagates back to the caller (which is
     typically :func:`asyncio.run` in the CLI).
     """
-    server = ProxyServer(host=host, port=port, accept=accept, conduct=conduct)
+    server = ProxyServer(
+        host=host,
+        port=port,
+        accept=accept,
+        conduct=conduct,
+        passthrough_auth=passthrough_auth,
+    )
     bound_host, bound_port = await server.start()
     logger.info("enchanter proxy listening on %s:%d", bound_host, bound_port)
     try:

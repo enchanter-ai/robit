@@ -40,12 +40,15 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 | 7 | Inference substrate live wire-in (proxy emits cross-session artifacts) | ✅ |
 | 7 | Byte pass-through fast path (env-gated + key allow-listed + audit JSONL) | ✅ |
 | 7 | Opt-in parallel plugin dispatch (`concurrent_safe = true` in `engine.toml`) | ✅ |
+| 8 | Pass-through auth on enforced proxy path (`--passthrough-auth`) | ✅ |
+| 8 | `ChatGptClient` for ChatGPT subscription (Plus/Team/Enterprise) auth | ✅ |
+| 8 | Codex CLI adapter — `/v1/responses` (Responses API, not chat completions) | ✅ |
 
-**0.5.0** — Two binaries:
-- `enchanter` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips)
-- `insighter` — runtime inspector (engines, conduct, inference, tier, audit, serve)
+**0.6.0** — Two binaries:
+- `enchanter` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips). Supports Anthropic Pro/Max OAuth (`CLAUDE_CODE_OAUTH_TOKEN`), OpenAI API key, and ChatGPT subscription tokens.
+- `insighter` — runtime inspector + proxy. The `--passthrough-auth` flag forwards host agents' subscription tokens to upstream so claude-code / codex can use their own billing while still getting enforcement.
 
-1029 tests passing across engines, conduct, lifecycle, inference, integration, MCP server, proxy, fastpath, events, runtimes, audit, agent core, tools, widgets, MCP client, plan mode, and subagents suites.
+1073 tests passing across all suites.
 
 ## LLM proxy quickstart
 

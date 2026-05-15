@@ -23,9 +23,13 @@ from .openai import OpenAIAdapter
 # Wave 1 — Gemini.
 from .gemini import GeminiAdapter
 
+# Wave 16.3 — Codex CLI (OpenAI Responses API).
+from .codex import CodexAdapter
+
 __all__ = [
     "AdapterParseError",
     "AnthropicAdapter",
+    "CodexAdapter",
     "GeminiAdapter",
     "OpenAIAdapter",
 ]

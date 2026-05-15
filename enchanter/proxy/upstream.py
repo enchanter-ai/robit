@@ -104,6 +104,7 @@ async def call_upstream(req: CanonicalRequest) -> CanonicalResponse:
     :class:`~.canonical.CanonicalResponse`.
     """
     kwargs = _build_litellm_kwargs(req, stream=False)
+    kwargs.update(_passthrough_auth_kwargs(req))
     try:
         resp = await litellm.acompletion(**kwargs)
     except Exception as exc:  # noqa: BLE001 — wrap-and-reraise pattern
@@ -125,6 +126,7 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
     render down to any provider's chunk format without information loss.
     """
     kwargs = _build_litellm_kwargs(req, stream=True)
+    kwargs.update(_passthrough_auth_kwargs(req))
     try:
         stream = await litellm.acompletion(**kwargs)
     except Exception as exc:  # noqa: BLE001
@@ -137,6 +139,42 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
 # ---------------------------------------------------------------------------
 # Request building.
 # ---------------------------------------------------------------------------
+
+
+def _passthrough_auth_kwargs(req: CanonicalRequest) -> dict[str, Any]:
+    """Translate the server's stashed inbound auth into LiteLLM kwargs.
+
+    Reads ``req.metadata["_enchanter_passthrough_auth"]`` (set by
+    :mod:`enchanter.proxy.server` when ``passthrough_auth=True``) and
+    returns kwargs to merge into the LiteLLM call: ``api_key`` for
+    API-key-style auth, plus ``extra_headers`` for Anthropic OAuth
+    bearer tokens.
+
+    Honesty note: the returned dict carries the raw credential. Never
+    log it. We do not include it in any error envelope.
+
+    Anthropic-OAuth quirk: LiteLLM (≤ 1.50.x) does forward
+    ``extra_headers`` for the Anthropic provider, but the ``api_key``
+    kwarg is still required (else LiteLLM raises before constructing
+    the request). We supply a placeholder so the OAuth header wins on
+    the wire. # TODO: verify LiteLLM extra_headers acceptance across
+    versions before flipping this path on by default.
+    """
+    if not req.metadata:
+        return {}
+    auth = req.metadata.get("_enchanter_passthrough_auth")
+    if not isinstance(auth, dict):
+        return {}
+    kind = auth.get("kind")
+    value = auth.get("value", "")
+    if kind in ("anthropic-api-key", "openai-bearer", "gemini-api-key"):
+        return {"api_key": value}
+    if kind == "anthropic-oauth":
+        return {
+            "api_key": "sk-ant-placeholder",
+            "extra_headers": {"Authorization": f"Bearer {value}"},
+        }
+    return {}
 
 
 def _build_litellm_kwargs(req: CanonicalRequest, *, stream: bool) -> dict[str, Any]:
@@ -168,8 +206,16 @@ def _build_litellm_kwargs(req: CanonicalRequest, *, stream: bool) -> dict[str, A
     if req.tool_choice is not None:
         kwargs["tool_choice"] = _tool_choice_to_litellm(req.tool_choice)
     if req.metadata:
-        # LiteLLM accepts a metadata bag for routing/logging hints.
-        kwargs["metadata"] = dict(req.metadata)
+        # LiteLLM accepts a metadata bag for routing/logging hints. Strip
+        # the internal pass-through-auth sentinel so the credential never
+        # rides on the metadata bag (which LiteLLM may log).
+        safe_meta = {
+            k: v
+            for k, v in req.metadata.items()
+            if k != "_enchanter_passthrough_auth"
+        }
+        if safe_meta:
+            kwargs["metadata"] = safe_meta
 
     return kwargs
 

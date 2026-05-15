@@ -205,3 +205,24 @@ REPL) + `insighter` (inspector). All LLM calls in the agent go
 through `enchanter.proxy.pipeline.run` so conduct injection + trust-gate +
 post-response secret-mask + audit JSONL apply to every turn automatically.
 
+
+## Wave 16 — Subscription auth + Codex compat (0.6.0) ✅
+
+Managed-split across 4 waves + 1 research-only. 1023 → 1073 tests (+50).
+
+| Wave | Agents | Scope | Tests |
+|---|---|---|---|
+| 16.0 — Research | 1 (parallel-safe) | Inventory Codex CLI wire protocol → `docs/architecture/audits/codex-protocol.md`. Found: Codex uses Responses API (`/v1/responses`), not chat completions; API-key mode hits `api.openai.com`, ChatGPT-login mode hits `chatgpt.com/backend-api/codex/responses` with PKCE-flow JWTs. | 0 |
+| 16.1 v2 — Pass-through auth | 1 (parallel-safe) | Proxy normal enforced path now forwards inbound auth header verbatim to upstream via LiteLLM `extra_headers` + `api_key`. New `--passthrough-auth` flag on `insighter serve --proxy`. Supports anthropic-api-key, anthropic-oauth, openai-bearer, gemini-api-key kinds. | +8 |
+| 16.2 v2 — ChatGptClient | 1 (parallel-safe) | New `enchanter/llm/chatgpt_client.py` + PKCE OAuth helpers at `enchanter/llm/_chatgpt_auth.py`. Token cached at `~/.enchanter/chatgpt-token.json`. Real endpoints from 16.0: `https://auth.openai.com`, client_id `app_EMoamEEZ73f0CkXaXp7hrann`, redirect `http://localhost:1455/auth/callback`. | +18 |
+| 16.3 — Codex adapter + ChatGptClient.complete() | 1 sequential (after 16.0) | New `CodexAdapter` at `/v1/responses` with Responses-API ↔ canonical translation. New `_codex_responses.py` shared helpers. ChatGptClient.complete() now talks to `chatgpt.com/backend-api/codex/responses` directly via stdlib HTTP. | +24 |
+| 16.4 — Ship | me | Bump version, smoke, commit, push | n/a |
+
+Honest v1 limitations documented in code:
+- No WebSocket transport (Codex prefers WS; we ship HTTP-SSE fallback only)
+- No `x-oai-attestation` header generation
+- Developer-role collapse (Codex's `"developer"` → canonical `"system"`)
+- No tool-call streaming in CodexAdapter (text-only deltas)
+- ChatGPT-login mode through the proxy path requires upstream URL override (LiteLLM doesn't override base URL per-request) — direct `ChatGptClient.complete()` works; proxy passthrough for ChatGPT JWTs deferred
+- ChatGptClient streaming deferred to Wave 17+
+

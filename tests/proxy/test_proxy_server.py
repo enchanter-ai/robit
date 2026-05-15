@@ -533,3 +533,110 @@ async def test_conduct_off_query_param_skips_conduct_injection():
         assert "<conduct>" not in corpus
     finally:
         await h.aclose()
+
+
+# ---------------------------------------------------------------------------
+# Tests — pass-through auth (Wave 16.1).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_true_captures_x_api_key_into_metadata():
+    """With passthrough_auth=True, the inbound x-api-key reaches the
+    LiteLLM call as the ``api_key`` kwarg, instead of forcing the
+    operator to set ANTHROPIC_API_KEY in the env."""
+    h = await _start_server(passthrough_auth=True)
+    try:
+        body = json.dumps(
+            {
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ).encode("utf-8")
+        with patch.object(
+            upstream.litellm,
+            "acompletion",
+            new=AsyncMock(return_value=_make_completion(text="ok")),
+        ) as mocked:
+            status, _headers, _body = await _post(
+                h.host,
+                h.port,
+                "/v1/messages",
+                body,
+                extra_headers=(("x-api-key", "sk-ant-host-agent-key"),),
+            )
+        assert status == 200
+        assert mocked.await_count == 1
+        kwargs = mocked.await_args.kwargs
+        assert kwargs["api_key"] == "sk-ant-host-agent-key"
+    finally:
+        await h.aclose()
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_false_default_does_not_capture_auth():
+    """With passthrough_auth disabled (default), the inbound x-api-key
+    is NOT forwarded as an api_key kwarg — LiteLLM falls back to env
+    vars, preserving the legacy contract."""
+    h = await _start_server()
+    try:
+        body = json.dumps(
+            {
+                "model": "claude-3-5-sonnet-20241022",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ).encode("utf-8")
+        with patch.object(
+            upstream.litellm,
+            "acompletion",
+            new=AsyncMock(return_value=_make_completion(text="ok")),
+        ) as mocked:
+            status, _headers, _body = await _post(
+                h.host,
+                h.port,
+                "/v1/messages",
+                body,
+                extra_headers=(("x-api-key", "sk-ant-should-be-ignored"),),
+            )
+        assert status == 200
+        kwargs = mocked.await_args.kwargs
+        assert "api_key" not in kwargs
+        # And the sentinel never reaches the LiteLLM metadata bag either.
+        meta = kwargs.get("metadata", {})
+        assert "_enchanter_passthrough_auth" not in meta
+
+
+    finally:
+        await h.aclose()
+
+
+@pytest.mark.asyncio
+async def test_passthrough_auth_openai_bearer_captured():
+    """OpenAI family — Authorization: Bearer ... reaches LiteLLM."""
+    h = await _start_server(passthrough_auth=True)
+    try:
+        body = json.dumps(
+            {
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ).encode("utf-8")
+        with patch.object(
+            upstream.litellm,
+            "acompletion",
+            new=AsyncMock(return_value=_make_completion(text="ok")),
+        ) as mocked:
+            status, _headers, _body = await _post(
+                h.host,
+                h.port,
+                "/v1/chat/completions",
+                body,
+                extra_headers=(("Authorization", "Bearer sk-openai-host"),),
+            )
+        assert status == 200
+        kwargs = mocked.await_args.kwargs
+        assert kwargs["api_key"] == "sk-openai-host"
+    finally:
+        await h.aclose()

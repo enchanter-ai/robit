@@ -313,6 +313,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             return 1
 
         conduct = not getattr(args, "no_conduct", False)
+        passthrough_auth = bool(getattr(args, "passthrough_auth", False))
 
         try:
             from enchanter.proxy import serve_proxy
@@ -327,6 +328,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
                     port=port,
                     accept=accept_set,
                     conduct=conduct,
+                    passthrough_auth=passthrough_auth,
                 )
             )
         except KeyboardInterrupt:
@@ -559,6 +561,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Disable enchanter-conduct injection on proxied requests. "
+            "Only used with --proxy."
+        ),
+    )
+    p_serve.add_argument(
+        "--passthrough-auth",
+        action="store_true",
+        dest="passthrough_auth",
+        help=(
+            "Forward the host agent's inbound x-api-key / Authorization "
+            "/ x-goog-api-key header verbatim to the upstream provider "
+            "via LiteLLM, instead of relying on operator-set env keys. "
             "Only used with --proxy."
         ),
     )
