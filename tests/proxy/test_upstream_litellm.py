@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
+import json
+import urllib.error
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -533,3 +536,198 @@ async def test_upstream_error_falls_back_to_unknown_provider():
             await call_upstream(_basic_req(model="weird-private-model"))
     assert ei.value.provider == "unknown"
     assert ei.value.status is None
+
+
+# ---------------------------------------------------------------------------
+# ChatGPT-internal routing (Wave 17.2) — bypass LiteLLM for chatgpt-jwt auth.
+# ---------------------------------------------------------------------------
+
+
+def _chatgpt_jwt_req(**overrides):
+    """Build a basic /v1/responses request with a chatgpt-jwt auth blob."""
+    return _basic_req(
+        model="gpt-5-codex",
+        metadata={
+            "_enchanter_passthrough_auth": {
+                "kind": "chatgpt-jwt",
+                "value": "eyJtest.payload.signature",
+                "account_id": "acct_xyz",
+            }
+        },
+        **overrides,
+    )
+
+
+def _fake_urlopen_response(payload: dict) -> MagicMock:
+    """A context-manager-compatible mock matching urlopen's return shape."""
+    raw = json.dumps(payload).encode("utf-8")
+    cm = MagicMock()
+    cm.__enter__ = MagicMock(return_value=SimpleNamespace(read=lambda: raw))
+    cm.__exit__ = MagicMock(return_value=False)
+    return cm
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_routes_to_internal_path_litellm_not_called():
+    """A canonical request carrying kind=chatgpt-jwt MUST bypass LiteLLM."""
+    payload = {
+        "model": "gpt-5-codex",
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "hi from chatgpt"}],
+            }
+        ],
+        "usage": {"input_tokens": 7, "output_tokens": 2},
+        "status": "completed",
+    }
+    cm = _fake_urlopen_response(payload)
+    with patch.object(
+        upstream.litellm, "acompletion", new=AsyncMock()
+    ) as mocked_litellm, patch.object(
+        upstream.urllib.request, "urlopen", return_value=cm
+    ) as mocked_urlopen:
+        resp = await call_upstream(_chatgpt_jwt_req())
+
+    assert mocked_litellm.await_count == 0
+    assert mocked_urlopen.call_count == 1
+    assert resp.content[0].text == "hi from chatgpt"
+    assert resp.usage.input_tokens == 7
+    assert resp.usage.output_tokens == 2
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_request_uses_correct_url_and_headers():
+    cm = _fake_urlopen_response({"model": "gpt-5-codex", "output": []})
+    with patch.object(
+        upstream.urllib.request, "urlopen", return_value=cm
+    ) as mocked_urlopen:
+        await call_upstream(_chatgpt_jwt_req())
+
+    request_obj = mocked_urlopen.call_args.args[0]
+    assert request_obj.full_url == upstream.CHATGPT_INTERNAL_URL
+    assert request_obj.get_method() == "POST"
+    # urllib lowercases header keys via the .headers property and exposes
+    # them through .header_items() / .get_header().
+    assert request_obj.get_header("Authorization") == "Bearer eyJtest.payload.signature"
+    assert request_obj.get_header("Chatgpt-account-id") == "acct_xyz"
+    assert "enchanter-agent" in (request_obj.get_header("User-agent") or "")
+    # Body is the Responses-API shape.
+    body = json.loads(request_obj.data.decode("utf-8"))
+    assert body["model"] == "gpt-5-codex"
+    assert body["store"] is False
+    assert body["stream"] is False
+    assert body["input"][0]["role"] == "user"
+    assert body["input"][0]["content"][0]["text"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_response_parsed_into_canonical():
+    payload = {
+        "model": "gpt-5-codex",
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "ok"}],
+            }
+        ],
+        "usage": {"input_tokens": 3, "output_tokens": 1},
+        "status": "completed",
+    }
+    cm = _fake_urlopen_response(payload)
+    with patch.object(upstream.urllib.request, "urlopen", return_value=cm):
+        resp = await call_upstream(_chatgpt_jwt_req())
+
+    assert resp.model == "gpt-5-codex"
+    assert resp.stop_reason == "end_turn"
+    assert len(resp.content) == 1
+    assert resp.content[0].text == "ok"
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_on_401_surfaces_upstream_error_with_refresh_hint():
+    err = urllib.error.HTTPError(
+        upstream.CHATGPT_INTERNAL_URL,
+        401,
+        "Unauthorized",
+        {},
+        io.BytesIO(b'{"error":"token expired"}'),
+    )
+    with patch.object(upstream.urllib.request, "urlopen", side_effect=err):
+        with pytest.raises(UpstreamError) as ei:
+            await call_upstream(_chatgpt_jwt_req())
+
+    assert ei.value.provider == "chatgpt"
+    assert ei.value.status == 401
+    assert "codex login" in ei.value.message.lower() or "refresh" in ei.value.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_on_500_surfaces_status_and_body_snippet():
+    body_snippet = b'{"error":"internal blah"}'
+    err = urllib.error.HTTPError(
+        upstream.CHATGPT_INTERNAL_URL,
+        500,
+        "Internal Server Error",
+        {},
+        io.BytesIO(body_snippet),
+    )
+    with patch.object(upstream.urllib.request, "urlopen", side_effect=err):
+        with pytest.raises(UpstreamError) as ei:
+            await call_upstream(_chatgpt_jwt_req())
+
+    assert ei.value.provider == "chatgpt"
+    assert ei.value.status == 500
+    assert "internal blah" in ei.value.message
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_streaming_raises_not_implemented():
+    """Streaming via the chatgpt-internal path is deferred to Wave 18+."""
+    req = _chatgpt_jwt_req(stream=True)
+    with pytest.raises(NotImplementedError):
+        async for _ in stream_upstream(req):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_account_id_missing_still_sends_request():
+    """Missing ChatGPT-Account-ID is allowed — upstream returns the error."""
+    req = _basic_req(
+        model="gpt-5-codex",
+        metadata={
+            "_enchanter_passthrough_auth": {
+                "kind": "chatgpt-jwt",
+                "value": "eyJtest.payload.sig",
+                "account_id": None,
+            }
+        },
+    )
+    cm = _fake_urlopen_response({"model": "gpt-5-codex", "output": []})
+    with patch.object(
+        upstream.urllib.request, "urlopen", return_value=cm
+    ) as mocked_urlopen:
+        await call_upstream(req)
+
+    request_obj = mocked_urlopen.call_args.args[0]
+    # No ChatGPT-Account-ID header set when account_id is None.
+    assert request_obj.get_header("Chatgpt-account-id") is None
+    assert request_obj.get_header("Authorization") == "Bearer eyJtest.payload.sig"
+
+
+@pytest.mark.asyncio
+async def test_non_chatgpt_jwt_request_still_uses_litellm():
+    """A request without the chatgpt-jwt sentinel takes the LiteLLM path."""
+    fake = _make_completion(text="from litellm")
+    with patch.object(
+        upstream.litellm, "acompletion", new=AsyncMock(return_value=fake)
+    ) as mocked_litellm, patch.object(
+        upstream.urllib.request, "urlopen"
+    ) as mocked_urlopen:
+        resp = await call_upstream(_basic_req())
+
+    assert mocked_litellm.await_count == 1
+    assert mocked_urlopen.call_count == 0
+    assert resp.content[0].text == "from litellm"

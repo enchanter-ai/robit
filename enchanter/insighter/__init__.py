@@ -625,6 +625,11 @@ def main(argv: list[str] | None = None) -> int:
     Returns an integer exit code (0 success, 1 user error, 2 runtime error).
     When *argv* is None, ``sys.argv[1:]`` is used.
     """
+    # Auto-load .env files before anything reads os.environ (e.g. API keys,
+    # feature toggles). Silent no-op if no .env files exist.
+    from enchanter._env import load_env_files
+    load_env_files()
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 

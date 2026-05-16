@@ -240,7 +240,63 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _build_login_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="enchanter login",
+        description="Authenticate with a subscription provider.",
+    )
+    p.add_argument(
+        "provider",
+        nargs="?",
+        choices=["chatgpt", "anthropic"],
+        help="Provider to authenticate with.",
+    )
+    p.add_argument(
+        "--list",
+        action="store_true",
+        help="List cached tokens instead of running a flow.",
+    )
+    return p
+
+
+def _build_logout_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="enchanter logout",
+        description="Delete cached subscription tokens.",
+    )
+    p.add_argument(
+        "provider",
+        nargs="?",
+        choices=["chatgpt", "anthropic"],
+        help="Provider whose token to delete.",
+    )
+    p.add_argument(
+        "--all",
+        action="store_true",
+        help="Delete every cached token.",
+    )
+    return p
+
+
 def main(argv: list[str] | None = None) -> int:
+    # Auto-load .env files before anything reads os.environ (e.g. API keys,
+    # mock-mode flags). Silent no-op if no .env files exist.
+    from enchanter._env import load_env_files
+    load_env_files()
+
+    if argv is None:
+        argv = sys.argv[1:]
+
+    # Subcommand dispatch — must run before the positional `task` parser so
+    # `enchanter login` / `enchanter logout` aren't swallowed as one-shot
+    # task strings.
+    if argv and argv[0] == "login":
+        from .login import run_login
+        return run_login(_build_login_parser().parse_args(argv[1:]))
+    if argv and argv[0] == "logout":
+        from .login import run_logout
+        return run_logout(_build_logout_parser().parse_args(argv[1:]))
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 

@@ -1,5 +1,7 @@
 # enchanter-agent
 
+> **Auth setup**: see [`docs/auth.md`](docs/auth.md) for the full env-var matrix, `.env` conventions, and how to point claude-code / codex / cursor at the proxy.
+
 ## Installation
 
 ```bash
@@ -43,12 +45,18 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 | 8 | Pass-through auth on enforced proxy path (`--passthrough-auth`) | ✅ |
 | 8 | `ChatGptClient` for ChatGPT subscription (Plus/Team/Enterprise) auth | ✅ |
 | 8 | Codex CLI adapter — `/v1/responses` (Responses API, not chat completions) | ✅ |
+| 9 | `.env` auto-loading (cwd + `~/.enchanter/.env`); shell env wins | ✅ |
+| 9 | `enchanter login chatgpt` / `enchanter logout` / `enchanter login --list` | ✅ |
+| 9 | ChatGPT-login through proxy (`--passthrough-auth` handles ChatGPT JWTs end-to-end via direct stdlib HTTP) | ✅ |
+| 9 | Authentication docs at [`docs/auth.md`](docs/auth.md) | ✅ |
 
-**0.6.0** — Two binaries:
-- `enchanter` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips). Supports Anthropic Pro/Max OAuth (`CLAUDE_CODE_OAUTH_TOKEN`), OpenAI API key, and ChatGPT subscription tokens.
-- `insighter` — runtime inspector + proxy. The `--passthrough-auth` flag forwards host agents' subscription tokens to upstream so claude-code / codex can use their own billing while still getting enforcement.
+**0.7.0** — Two binaries:
+- `enchanter` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips). Supports Anthropic Pro/Max OAuth, OpenAI API key, and ChatGPT subscription. Run `enchanter login chatgpt` to authenticate via your ChatGPT Plus/Team subscription.
+- `insighter` — runtime inspector + proxy. The `--passthrough-auth` flag forwards host agents' subscription tokens (Anthropic OAuth, OpenAI Bearer, Gemini API key, ChatGPT JWTs) to upstream so claude-code / codex can use their own billing while still getting enforcement.
 
-1073 tests passing across all suites.
+Both binaries auto-load `.env` from cwd and `~/.enchanter/.env` at startup. Shell env wins over `.env`. See [`docs/auth.md`](docs/auth.md) for the full env-var matrix.
+
+1119 tests passing across all suites.
 
 ## LLM proxy quickstart
 

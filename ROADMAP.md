@@ -226,3 +226,16 @@ Honest v1 limitations documented in code:
 - ChatGPT-login mode through the proxy path requires upstream URL override (LiteLLM doesn't override base URL per-request) — direct `ChatGptClient.complete()` works; proxy passthrough for ChatGPT JWTs deferred
 - ChatGptClient streaming deferred to Wave 17+
 
+
+## Wave 17 — Auth UX (0.7.0) ✅
+
+Managed-split across 4 parallel agents. 1073 → 1119 tests (+46).
+
+| Wave | Agents | Scope | Tests |
+|---|---|---|---|
+| 17.0 — `.env` auto-loading | 1 (parallel-safe) | `enchanter/_env.py` loader; cwd + user-home precedence; shell env wins. Stdlib-only (no python-dotenv). Wired into both `enchanter` and `insighter` `main()` before any env reads. | +19 |
+| 17.1 — `enchanter login` CLI | 1 (parallel-safe) | `enchanter login chatgpt` runs PKCE flow, saves token. `enchanter login --list` shows cached tokens. `enchanter logout chatgpt` / `--all` removes them. `login anthropic` is an informational stub (no standalone Claude.ai OAuth flow exists). | +12 |
+| 17.2 — ChatGPT-login through proxy | 1 (parallel-safe) | Inbound `_extract_inbound_auth` shape-matches JWTs → kind `"chatgpt-jwt"` with `ChatGPT-Account-ID`. Outbound `_call_chatgpt_internal` posts directly to `chatgpt.com/backend-api/codex/responses` via stdlib `urllib`, bypassing LiteLLM. Streaming on this path deferred to Wave 18+. | +15 |
+| 17.3 — Auth docs | 1 (parallel-safe, docs only) | `docs/auth.md` (1929 words, 53 source citations). Env-var matrix, `.env` conventions, three pass-through patterns for the proxy, host-agent base-URL examples, honest limitations. | 0 |
+| 17.4 — Ship | me | Bump 0.6.0 → 0.7.0, smoke, commit, push | n/a |
+

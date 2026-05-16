@@ -640,3 +640,197 @@ async def test_passthrough_auth_openai_bearer_captured():
         assert kwargs["api_key"] == "sk-openai-host"
     finally:
         await h.aclose()
+
+
+# ---------------------------------------------------------------------------
+# Tests — JWT-shape detection in _extract_inbound_auth (Wave 17.2).
+# ---------------------------------------------------------------------------
+
+
+def test_extract_inbound_auth_codex_detects_jwt_shape():
+    """Codex /v1/responses + Bearer eyJ… → kind='chatgpt-jwt' with account_id."""
+    from enchanter.proxy.server import _extract_inbound_auth
+
+    headers = {
+        "authorization": "Bearer eyJhbGciOi.payload-body.sig-tail",
+        "chatgpt-account-id": "acct_123",
+    }
+    auth = _extract_inbound_auth(headers, "codex")
+    assert auth is not None
+    assert auth["kind"] == "chatgpt-jwt"
+    assert auth["value"] == "eyJhbGciOi.payload-body.sig-tail"
+    assert auth["account_id"] == "acct_123"
+
+
+def test_extract_inbound_auth_codex_jwt_missing_account_id_is_none():
+    """Missing ChatGPT-Account-ID is captured as None, not synthesised."""
+    from enchanter.proxy.server import _extract_inbound_auth
+
+    headers = {"authorization": "Bearer eyJabc.def.ghi"}
+    auth = _extract_inbound_auth(headers, "codex")
+    assert auth is not None
+    assert auth["kind"] == "chatgpt-jwt"
+    assert auth["account_id"] is None
+
+
+def test_extract_inbound_auth_codex_non_jwt_bearer_is_openai_bearer():
+    """A non-JWT Bearer (sk-…) on /v1/responses stays as openai-bearer."""
+    from enchanter.proxy.server import _extract_inbound_auth
+
+    headers = {"authorization": "Bearer sk-proj-abc-1234"}
+    auth = _extract_inbound_auth(headers, "codex")
+    assert auth is not None
+    assert auth["kind"] == "openai-bearer"
+    assert auth["value"] == "sk-proj-abc-1234"
+    assert "account_id" not in auth
+
+
+def test_extract_inbound_auth_openai_family_also_detects_jwt():
+    """JWT-shaped tokens on the OpenAI family route to chatgpt-jwt too.
+
+    Wave 17.2: some host agents may route Codex through the OpenAI adapter
+    by accident — we honour the JWT shape regardless of family.
+    """
+    from enchanter.proxy.server import _extract_inbound_auth
+
+    headers = {
+        "authorization": "Bearer eyJraw.body.tail",
+        "chatgpt-account-id": "acct_oai",
+    }
+    auth = _extract_inbound_auth(headers, "openai")
+    assert auth is not None
+    assert auth["kind"] == "chatgpt-jwt"
+    assert auth["account_id"] == "acct_oai"
+
+
+def test_looks_like_jwt_shape_matcher():
+    """The JWT regex matches the canonical three-segment compact form."""
+    from enchanter.proxy.server import _looks_like_jwt
+
+    # Three base64url segments, eyJ prefix → match.
+    assert _looks_like_jwt("eyJabc.def-_AB.gh_-iZ") is True
+    # Missing one segment → no match.
+    assert _looks_like_jwt("eyJabc.def") is False
+    # Wrong prefix → no match.
+    assert _looks_like_jwt("sk-abc.def.ghi") is False
+    # Empty → no match.
+    assert _looks_like_jwt("") is False
+    # JWT-ish but with a forbidden char (=).
+    assert _looks_like_jwt("eyJabc.de=f.ghi") is False
+
+
+# ---------------------------------------------------------------------------
+# Test — end-to-end Codex /v1/responses + JWT routes through
+# _call_chatgpt_internal, NOT LiteLLM.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_request_routes_through_chatgpt_internal_path():
+    """POST /v1/responses with Bearer JWT + ChatGPT-Account-ID:
+    upstream.call_upstream is invoked, _call_chatgpt_internal handles it,
+    LiteLLM is never called.
+    """
+    from enchanter.proxy.canonical import (
+        CanonicalResponse,
+        CanonicalUsage,
+        TextPart,
+    )
+
+    fake_canonical = CanonicalResponse(
+        model="gpt-5-codex",
+        content=(TextPart(text="hello chatgpt"),),
+        stop_reason="end_turn",
+        usage=CanonicalUsage(input_tokens=4, output_tokens=2),
+    )
+
+    h = await _start_server(passthrough_auth=True)
+    try:
+        body = json.dumps(
+            {
+                "model": "gpt-5-codex",
+                "input": [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "hi"}],
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        async def _fake_internal(req, auth):
+            # Assert the auth blob carried through.
+            assert auth["kind"] == "chatgpt-jwt"
+            assert auth["value"].startswith("eyJ")
+            assert auth["account_id"] == "acct_e2e"
+            return fake_canonical
+
+        with patch.object(
+            upstream, "_call_chatgpt_internal", new=AsyncMock(side_effect=_fake_internal)
+        ) as mocked_internal, patch.object(
+            upstream.litellm, "acompletion", new=AsyncMock()
+        ) as mocked_litellm:
+            status, headers, resp_body = await _post(
+                h.host,
+                h.port,
+                "/v1/responses",
+                body,
+                extra_headers=(
+                    ("Authorization", "Bearer eyJh.payload.sig"),
+                    ("ChatGPT-Account-ID", "acct_e2e"),
+                ),
+            )
+
+        assert status == 200
+        assert mocked_internal.await_count == 1
+        assert mocked_litellm.await_count == 0
+        obj = json.loads(resp_body)
+        # CodexAdapter.render_response shape: output[0].content[0].text
+        assert obj["output"][0]["content"][0]["text"] == "hello chatgpt"
+    finally:
+        await h.aclose()
+
+
+@pytest.mark.asyncio
+async def test_chatgpt_jwt_request_without_passthrough_does_not_route():
+    """With passthrough_auth=False, the JWT is NOT captured; the request
+    falls through to LiteLLM (which will 404 in production, but in the
+    test we mock acompletion and just assert the routing decision)."""
+    h = await _start_server(passthrough_auth=False)
+    try:
+        body = json.dumps(
+            {
+                "model": "gpt-5-codex",
+                "input": [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "hi"}],
+                    }
+                ],
+            }
+        ).encode("utf-8")
+        with patch.object(
+            upstream, "_call_chatgpt_internal", new=AsyncMock()
+        ) as mocked_internal, patch.object(
+            upstream.litellm,
+            "acompletion",
+            new=AsyncMock(return_value=_make_completion(text="lite")),
+        ) as mocked_litellm:
+            status, _headers, _resp_body = await _post(
+                h.host,
+                h.port,
+                "/v1/responses",
+                body,
+                extra_headers=(
+                    ("Authorization", "Bearer eyJh.payload.sig"),
+                    ("ChatGPT-Account-ID", "acct_e2e"),
+                ),
+            )
+        assert status == 200
+        # Routing decision: passthrough off → LiteLLM, not the internal path.
+        assert mocked_internal.await_count == 0
+        assert mocked_litellm.await_count == 1
+    finally:
+        await h.aclose()

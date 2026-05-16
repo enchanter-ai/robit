@@ -40,11 +40,19 @@ stable shape to render back to the client.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import urllib.error
+import urllib.request
+from types import SimpleNamespace
 from typing import Any, AsyncIterator
 
 import litellm
 
+from ..llm._codex_responses import (
+    build_responses_request,
+    parse_responses_completion,
+)
 from .canonical import (
     CanonicalChunk,
     CanonicalRequest,
@@ -55,6 +63,13 @@ from .canonical import (
     ToolUsePart,
     ToolResultPart,
 )
+
+# Upstream endpoint for ChatGPT-login Codex mode. Hardcoded per Wave 16.0
+# audit (`docs/architecture/audits/codex-protocol.md`) — the
+# ``chatgpt.com/backend-api/codex`` base URL has no public override and
+# LiteLLM has no provider entry for it.
+CHATGPT_INTERNAL_URL = "https://chatgpt.com/backend-api/codex/responses"
+CHATGPT_INTERNAL_USER_AGENT = "enchanter-agent/0.7 (proxy-chatgpt)"
 
 # Silently drop kwargs the upstream provider doesn't understand.
 litellm.drop_params = True
@@ -102,7 +117,19 @@ async def call_upstream(req: CanonicalRequest) -> CanonicalResponse:
     The request is converted to LiteLLM (OpenAI-shaped) kwargs, dispatched
     via ``litellm.acompletion``, and the response coerced back into a
     :class:`~.canonical.CanonicalResponse`.
+
+    ChatGPT-login routing
+    ---------------------
+    When the inbound carried a JWT-shaped Bearer (server.py marks it as
+    ``kind="chatgpt-jwt"`` on the passthrough-auth metadata blob), we
+    bypass LiteLLM entirely and POST to the ChatGPT-internal endpoint
+    directly via stdlib HTTP. LiteLLM has no per-request base-URL
+    override for the ``chatgpt.com/backend-api/codex/responses`` route.
     """
+    auth = _passthrough_auth_dict(req)
+    if auth is not None and auth.get("kind") == "chatgpt-jwt":
+        return await _call_chatgpt_internal(req, auth)
+
     kwargs = _build_litellm_kwargs(req, stream=False)
     kwargs.update(_passthrough_auth_kwargs(req))
     try:
@@ -124,7 +151,16 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
     (``message_start`` → ``content_block_start`` → ``text_delta`` * →
     ``content_block_stop`` → ``message_stop``) so downstream adapters can
     render down to any provider's chunk format without information loss.
+
+    ChatGPT-login streaming is **not** implemented in this wave — see
+    :func:`_stream_chatgpt_internal`.
     """
+    auth = _passthrough_auth_dict(req)
+    if auth is not None and auth.get("kind") == "chatgpt-jwt":
+        async for chunk in _stream_chatgpt_internal(req, auth):
+            yield chunk
+        return
+
     kwargs = _build_litellm_kwargs(req, stream=True)
     kwargs.update(_passthrough_auth_kwargs(req))
     try:
@@ -134,6 +170,244 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
 
     async for chunk in _translate_stream(stream, req.model):
         yield chunk
+
+
+def _passthrough_auth_dict(req: CanonicalRequest) -> dict[str, Any] | None:
+    """Return the inbound-auth blob from request metadata, or None."""
+    if not req.metadata:
+        return None
+    auth = req.metadata.get("_enchanter_passthrough_auth")
+    if isinstance(auth, dict):
+        return auth
+    return None
+
+
+# ---------------------------------------------------------------------------
+# ChatGPT-internal (non-LiteLLM) upstream path.
+# ---------------------------------------------------------------------------
+
+
+def _canonical_to_completion_shim(req: CanonicalRequest) -> SimpleNamespace:
+    """Build a duck-typed CompletionRequest for `build_responses_request`.
+
+    ``build_responses_request`` only reads ``model``, ``messages``,
+    ``system``, ``temperature``, ``max_tokens``, ``stop_sequences``, and
+    ``tools`` via ``getattr``; ``messages`` need ``role`` and ``content``
+    (string) per :func:`enchanter.llm._codex_responses._message_to_input_item`.
+
+    We flatten each canonical message's TextParts into a single string and
+    drop tool_use / tool_result parts (v1 limitation — Codex ChatGPT-mode
+    is text-first; the audit notes tool streaming is deferred).
+    """
+    flat_messages: list[SimpleNamespace] = []
+    for m in req.messages:
+        if m.role not in ("user", "assistant"):
+            # The Responses API also accepts these via the canonical path,
+            # but we keep the shim minimal — only user/assistant survive.
+            continue
+        text_parts: list[str] = []
+        for part in m.content:
+            if isinstance(part, TextPart):
+                text_parts.append(part.text)
+            elif isinstance(part, ToolResultPart):
+                # Inline tool results as text for the chatgpt-internal path
+                # (v1 — Codex ChatGPT mode does not yet round-trip
+                # canonical tool calls through this client).
+                text_parts.append(part.content)
+            # ToolUsePart from a prior assistant turn: dropped in v1.
+        flat = "".join(text_parts)
+        flat_messages.append(SimpleNamespace(role=m.role, content=flat))
+
+    return SimpleNamespace(
+        model=req.model,
+        messages=flat_messages,
+        system=req.system,
+        temperature=req.temperature,
+        max_tokens=req.max_tokens,
+        stop_sequences=req.stop_sequences,
+        tools=None,  # Responses-API tools are dropped in v1 — see docstring.
+    )
+
+
+def _coerce_completion_response_to_canonical(
+    completion: Any, *, requested_model: str
+) -> CanonicalResponse:
+    """Translate :class:`CompletionResponse` → :class:`CanonicalResponse`.
+
+    The Responses-API JSON only carries a single text output in v1 (one
+    ``output_text`` part). Tool calls parsed by
+    :func:`parse_responses_completion` come back on
+    ``completion.tool_calls``; we surface them as :class:`ToolUsePart`s.
+    """
+    content: list[ContentPart] = []
+    if completion.text:
+        content.append(TextPart(text=completion.text))
+    for tc in completion.tool_calls or []:
+        content.append(
+            ToolUsePart(
+                id=tc.get("id") or "",
+                name=tc.get("name") or "",
+                input=tc.get("input") or {},
+            )
+        )
+
+    has_tool_use = bool(completion.tool_calls)
+    stop_reason = _map_finish_reason(
+        completion.stop_reason, has_tool_use=has_tool_use
+    )
+
+    return CanonicalResponse(
+        model=completion.model or requested_model,
+        content=tuple(content),
+        stop_reason=stop_reason,
+        usage=CanonicalUsage(
+            input_tokens=_safe_int(completion.input_tokens),
+            output_tokens=_safe_int(completion.output_tokens),
+        ),
+    )
+
+
+def _post_chatgpt_internal_sync(
+    body: bytes, token: str, account_id: str | None
+) -> dict[str, Any]:
+    """Sync POST to the ChatGPT-internal Responses endpoint.
+
+    Raises :class:`urllib.error.HTTPError` on non-2xx so the async caller
+    can map status codes (401, 5xx, …) into :class:`UpstreamError`.
+
+    Honesty note: the Authorization header carries the raw JWT. We never
+    log the request object, never include the headers dict in any
+    exception we re-raise, and the urllib stack does not log bodies by
+    default. The only path that could leak the token is operator-supplied
+    handlers attached to the root logger — outside this module's scope.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": CHATGPT_INTERNAL_USER_AGENT,
+    }
+    if account_id:
+        headers["ChatGPT-Account-ID"] = account_id
+
+    request = urllib.request.Request(  # noqa: S310 — fixed https URL
+        CHATGPT_INTERNAL_URL,
+        data=body,
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=60) as resp:  # noqa: S310
+        raw = resp.read()
+    if not raw:
+        return {}
+    return json.loads(raw.decode("utf-8"))
+
+
+async def _call_chatgpt_internal(
+    req: CanonicalRequest,
+    auth: dict,
+) -> CanonicalResponse:
+    """Non-streaming POST to ``chatgpt.com/backend-api/codex/responses``.
+
+    Bypasses LiteLLM. Builds the Responses-API body via
+    :func:`enchanter.llm._codex_responses.build_responses_request`, POSTs
+    through stdlib ``urllib`` on a worker thread, and translates the
+    response into a :class:`CanonicalResponse`.
+
+    Errors are surfaced as :class:`UpstreamError`. On HTTP 401 we attach
+    a hint that the JWT should be refreshed via ``codex login`` — the
+    proxy itself does not perform token refresh (the host agent owns the
+    credential lifecycle).
+    """
+    body_dict = build_responses_request(
+        _canonical_to_completion_shim(req), stream=False
+    )
+    body_bytes = json.dumps(body_dict).encode("utf-8")
+    token = str(auth.get("value") or "")
+    account_id = auth.get("account_id")
+
+    try:
+        response_json = await asyncio.to_thread(
+            _post_chatgpt_internal_sync, body_bytes, token, account_id
+        )
+    except urllib.error.HTTPError as exc:
+        snippet = _safe_error_snippet(exc)
+        if exc.code == 401:
+            raise UpstreamError(
+                provider="chatgpt",
+                status=401,
+                message=(
+                    "ChatGPT subscription token rejected — refresh the "
+                    "cached JWT (`codex login`) and retry."
+                ),
+            ) from exc
+        raise UpstreamError(
+            provider="chatgpt",
+            status=exc.code,
+            message=f"upstream {exc.code}: {snippet}",
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise UpstreamError(
+            provider="chatgpt",
+            status=None,
+            message=f"network error: {exc.reason}",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise UpstreamError(
+            provider="chatgpt",
+            status=None,
+            message=f"unexpected upstream error: {exc}",
+        ) from exc
+
+    completion = parse_responses_completion(
+        response_json, requested_model=req.model
+    )
+    return _coerce_completion_response_to_canonical(
+        completion, requested_model=req.model
+    )
+
+
+async def _stream_chatgpt_internal(
+    req: CanonicalRequest,  # noqa: ARG001 — kept for signature parity
+    auth: dict,  # noqa: ARG001
+) -> AsyncIterator[CanonicalChunk]:
+    """Streaming variant. **Deferred to Wave 18+.**
+
+    Stdlib ``urllib`` does not expose an async chunked-read interface,
+    and a worker-thread pump driving an ``asyncio.Queue`` is enough
+    additional surface area to deserve its own wave. The honest scope
+    cut is to raise ``NotImplementedError`` now and route streaming
+    Codex-ChatGPT requests to a clear error rather than silently falling
+    back to LiteLLM (which would 404 against ``chatgpt.com``).
+    """
+    if False:  # pragma: no cover — keep this an async generator
+        yield  # type: ignore[unreachable]
+    raise NotImplementedError(
+        "ChatGPT-login streaming via the proxy is not implemented in "
+        "Wave 17.2 — non-streaming requests work. See enchanter/proxy/"
+        "upstream.py::_stream_chatgpt_internal."
+    )
+
+
+def _safe_error_snippet(exc: urllib.error.HTTPError) -> str:
+    """Read up to 512 chars of an HTTPError body for diagnostics.
+
+    Honesty note: this snippet is included in the surfaced
+    :class:`UpstreamError` message. We deliberately *do not* read
+    request headers from ``exc`` and we *do not* include the failing URL
+    (which is constant — see ``CHATGPT_INTERNAL_URL`` — and therefore
+    carries no incremental info). The response body from ChatGPT does
+    not echo the inbound auth header.
+    """
+    try:
+        raw = exc.read() if hasattr(exc, "read") else b""
+    except Exception:  # noqa: BLE001
+        return ""
+    try:
+        text = raw.decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return ""
+    return text[:512]
 
 
 # ---------------------------------------------------------------------------

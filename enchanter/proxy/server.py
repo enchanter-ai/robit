@@ -41,6 +41,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import replace
 from typing import Any, AsyncIterator
 from urllib.parse import parse_qs, urlparse
@@ -637,9 +638,27 @@ class ProxyServer:
 # ---------------------------------------------------------------------------
 
 
+# JWT shape: three base64url segments separated by dots, with the first
+# segment starting with ``eyJ`` (base64url of ``{"`` — the opening of every
+# JWS header). We do NOT validate the signature; we only shape-match to
+# discriminate Codex's two auth modes (API key vs ChatGPT subscription JWT).
+_JWT_SHAPE_RE = re.compile(
+    r"^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$"
+)
+
+
+def _looks_like_jwt(token: str) -> bool:
+    """Shape-match a string against the JWT (compact-serialization) form.
+
+    True for ``eyJ…``.``…``.``…``; false otherwise. No signature or claim
+    validation — we only need to discriminate inbound auth modes.
+    """
+    return bool(_JWT_SHAPE_RE.match(token or ""))
+
+
 def _extract_inbound_auth(
     headers: dict[str, str], family: str
-) -> dict[str, str] | None:
+) -> dict[str, Any] | None:
     """Extract a host-agent's auth credential from inbound headers.
 
     Header keys are lowercased by the HTTP parser. Returns a dict with
@@ -662,16 +681,38 @@ def _extract_inbound_auth(
     if family == "openai":
         bearer = headers.get("authorization", "")
         if bearer.lower().startswith("bearer "):
-            return {"kind": "openai-bearer", "value": bearer[7:].strip()}
+            token = bearer[7:].strip()
+            # Codex CLI may also POST /v1/responses through the OpenAI
+            # adapter on some upstreams; if the token is JWT-shaped we
+            # route through the ChatGPT-internal path.
+            if _looks_like_jwt(token):
+                return {
+                    "kind": "chatgpt-jwt",
+                    "value": token,
+                    "account_id": headers.get("chatgpt-account-id"),
+                }
+            return {"kind": "openai-bearer", "value": token}
         return None
     if family == "codex":
         # Codex CLI sends either an API key (`sk-…`) or a ChatGPT JWT
-        # (`eyJ…`) under Authorization: Bearer. The proxy forwards
-        # verbatim; URL override for the ChatGPT-internal endpoint is a
-        # known v1 limitation (see adapters/codex.py).
+        # (`eyJ…`) under Authorization: Bearer. ChatGPT-login mode is
+        # routed via the non-LiteLLM path in upstream.py
+        # (`_call_chatgpt_internal`); the JWT shape is the only honest
+        # signal we have to discriminate — Codex CLI sends an `sk-…` key
+        # for API-key mode and a ``eyJ…``-shaped JWT for ChatGPT mode.
         bearer = headers.get("authorization", "")
         if bearer.lower().startswith("bearer "):
-            return {"kind": "openai-bearer", "value": bearer[7:].strip()}
+            token = bearer[7:].strip()
+            if _looks_like_jwt(token):
+                return {
+                    "kind": "chatgpt-jwt",
+                    "value": token,
+                    # ChatGPT-Account-ID is required by the upstream for
+                    # subscription-auth mode; if missing we let the
+                    # upstream return the right error (do not synthesise).
+                    "account_id": headers.get("chatgpt-account-id"),
+                }
+            return {"kind": "openai-bearer", "value": token}
         return None
     if family == "gemini":
         api_key = headers.get("x-goog-api-key")
