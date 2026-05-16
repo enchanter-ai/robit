@@ -1,0 +1,11 @@
+name = "cost-ledger"
+description = "Required at post-response. Per-request token ledger, vendor budget tracking, and tier boundary events. Fail-closed per architecture-spec phase_5."
+version = "1.0.0"
+phases = ["post-response"]
+required = true
+budget_tier = "always"
+adapter = "robit.engines.cost_ledger.adapter:adapter"
+
+[topics]
+subscribes = ["mcp.tool.result.received", "sampling.completed"]
+emits = ["cost-ledger.appended", "cost-ledger.threshold.crossed", "cost-ledger.vendor.exhausted"]

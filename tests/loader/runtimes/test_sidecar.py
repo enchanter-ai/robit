@@ -1,4 +1,4 @@
-"""Tests for enchanter.loader.runtimes.sidecar — subprocess JSON-RPC stdio runtime."""
+"""Tests for robit.loader.runtimes.sidecar — subprocess JSON-RPC stdio runtime."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.core import PluginAck, create_request_context
-from enchanter.core.events import EnchantedEvent
-from enchanter.core.plugin import PluginTopics
-from enchanter.loader.manifest import EngineManifest, EngineTopics
-from enchanter.loader.runtimes import (
+from robit.core import PluginAck, create_request_context
+from robit.core.events import EnchantedEvent
+from robit.core.plugin import PluginTopics
+from robit.loader.manifest import EngineManifest, EngineTopics
+from robit.loader.runtimes import (
     SidecarAdapter,
     load_runtime,
     load_sidecar_adapter,
 )
-from enchanter.loader.runtimes.sidecar import _parse_ack
+from robit.loader.runtimes.sidecar import _parse_ack
 
 FIXTURE = Path(__file__).parent / "fixtures" / "echo_sidecar.py"
 
@@ -255,7 +255,7 @@ def test_parse_ack_handles_malformed_result() -> None:
 
 from unittest.mock import AsyncMock, patch
 
-from enchanter.core.plugin import PluginTopics as _PluginTopics
+from robit.core.plugin import PluginTopics as _PluginTopics
 
 
 def _make_adapter(
@@ -307,7 +307,7 @@ def _ack_result(derived: list[dict]) -> dict:
 async def test_validate_accepts_well_formed_derived_event() -> None:
     adapter = _make_adapter()
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         accepted = await adapter._validate_derived_event(_good_event())
@@ -320,7 +320,7 @@ async def test_validate_rejects_reserved_source_orchestrator() -> None:
     adapter = _make_adapter()
     forged = _good_event(source="orchestrator")
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         result = await adapter._validate_derived_event(forged)
@@ -339,7 +339,7 @@ async def test_validate_rejects_source_mismatch_with_manifest_name() -> None:
     adapter = _make_adapter(name="foo", emits=("foo-topic",))
     bad = _good_event(source="bar", topic="foo-topic")
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         result = await adapter._validate_derived_event(bad)
@@ -352,7 +352,7 @@ async def test_validate_rejects_undeclared_topic() -> None:
     adapter = _make_adapter(emits=("declared-topic",))
     bad = _good_event(topic="surprise-topic")
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         result = await adapter._validate_derived_event(bad)
@@ -367,7 +367,7 @@ async def test_validate_rejects_phase_out_of_scope() -> None:
     adapter = _make_adapter(phases=("trust-gate",))
     bad = _good_event(phase="dispatch")
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         result = await adapter._validate_derived_event(bad)
@@ -381,7 +381,7 @@ async def test_validate_rejects_malformed_event_missing_topic() -> None:
     bad = _good_event()
     del bad["topic"]
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         result = await adapter._validate_derived_event(bad)
@@ -407,7 +407,7 @@ async def test_on_phase_mixed_batch_keeps_only_valid_event() -> None:
     raw_result = _ack_result([good, forged1, forged2])
 
     with patch(
-        "enchanter.loader.runtimes.sidecar.record_rejection",
+        "robit.loader.runtimes.sidecar.record_rejection",
         new=AsyncMock(),
     ) as rec:
         kept: list[dict] = []
@@ -432,7 +432,7 @@ async def test_on_phase_forgery_does_not_abort_ack_via_pipeline() -> None:
     adapter = load_sidecar_adapter(m)
     try:
         with patch(
-            "enchanter.loader.runtimes.sidecar.record_rejection",
+            "robit.loader.runtimes.sidecar.record_rejection",
             new=AsyncMock(),
         ) as rec:
             ctx = create_request_context(session_id="s-mix", budget_tier="HIGH")
@@ -454,13 +454,13 @@ async def test_on_phase_forgery_does_not_abort_ack_via_pipeline() -> None:
 async def test_validate_rejects_all_reserved_source_names() -> None:
     """Defence-in-depth: each name in the reserved set must be refused even
     if a misconfigured manifest somehow declared one of them as self.name."""
-    from enchanter.loader.runtimes.sidecar import _RESERVED_SOURCES
+    from robit.loader.runtimes.sidecar import _RESERVED_SOURCES
 
     for reserved in _RESERVED_SOURCES:
         adapter = _make_adapter(name=reserved)
         bad = _good_event(source=reserved)
         with patch(
-            "enchanter.loader.runtimes.sidecar.record_rejection",
+            "robit.loader.runtimes.sidecar.record_rejection",
             new=AsyncMock(),
         ) as rec:
             result = await adapter._validate_derived_event(bad)

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.agent.widgets.cost import CostTicker
-from enchanter.proxy.events.cost_ledger import _compute_cents
+from robit.agent.widgets.cost import CostTicker
+from robit.proxy.events.cost_ledger import _compute_cents
 
 
 def _text(ticker: CostTicker) -> str:

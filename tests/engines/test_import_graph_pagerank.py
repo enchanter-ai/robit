@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import EnchantedEvent, PluginAck, create_request_context
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.import_graph_pagerank import (
+from robit.core import EnchantedEvent, PluginAck, create_request_context
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.import_graph_pagerank import (
     ImportGraphPagerank,
     ImportGraphStore,
     extract_imports,

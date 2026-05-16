@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.events.cost_ledger — Wave 13.1 Agent B.
+"""Tests for robit.proxy.events.cost_ledger — Wave 13.1 Agent B.
 
 Coverage:
 
@@ -26,22 +26,22 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from enchanter.core import InProcessBus
-from enchanter.proxy.canonical import (
+from robit.core import InProcessBus
+from robit.proxy.canonical import (
     CanonicalRequest,
     CanonicalResponse,
     CanonicalUsage,
     Message,
     TextPart,
 )
-from enchanter.proxy.events import EmitPhase, load_emitters
-from enchanter.proxy.events.cost_ledger import (
+from robit.proxy.events import EmitPhase, load_emitters
+from robit.proxy.events.cost_ledger import (
     CostLedgerEmitter,
     _compute_cents,
     _price_for,
     emitter as cost_emitter,
 )
-from enchanter.proxy.events._types import EmitContext
+from robit.proxy.events._types import EmitContext
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +281,7 @@ def _make_litellm_completion(
 
 @pytest.mark.asyncio
 async def test_pipeline_run_surfaces_cost_observation():
-    from enchanter.proxy import pipeline, upstream
+    from robit.proxy import pipeline, upstream
 
     req = _req(model="gpt-4o-mini")
 
@@ -324,7 +324,7 @@ async def test_pipeline_run_accumulates_across_requests_without_crashing():
     repeated invocation does not crash and each request produces its own
     cost observation.
     """
-    from enchanter.proxy import pipeline, upstream
+    from robit.proxy import pipeline, upstream
 
     req = _req(model="claude-3-5-sonnet-20241022")
 
@@ -398,8 +398,8 @@ async def _post_raw(
 
 @pytest.mark.asyncio
 async def test_proxy_server_surfaces_x_enchanter_cost_cents_header():
-    from enchanter.proxy import upstream
-    from enchanter.proxy.server import ProxyServer
+    from robit.proxy import upstream
+    from robit.proxy.server import ProxyServer
 
     server = ProxyServer(host="127.0.0.1", port=0)
     host, port = await server.start()

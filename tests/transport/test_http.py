@@ -27,8 +27,8 @@ from typing import Any, Callable, Coroutine
 
 import pytest
 
-from enchanter.transport.descriptor import TransportDescriptor
-from enchanter.transport.http import (
+from robit.transport.descriptor import TransportDescriptor
+from robit.transport.http import (
     BACKOFF_INITIAL_S,
     BodyTooLargeError,
     PER_MESSAGE_BODY_MAX_BYTES,

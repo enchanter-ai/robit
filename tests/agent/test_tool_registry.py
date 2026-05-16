@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools — registry semantics + echo dummy."""
+"""Tests for robit.agent.tools — registry semantics + echo dummy."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.tools import EchoTool, Tool, ToolContext, ToolRegistry, ToolResult
+from robit.agent.tools import EchoTool, Tool, ToolContext, ToolRegistry, ToolResult
 
 
 def test_register_get_contains():

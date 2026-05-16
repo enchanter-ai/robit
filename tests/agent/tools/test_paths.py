@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools._paths.safe_resolve."""
+"""Tests for robit.agent.tools._paths.safe_resolve."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from enchanter.agent.tools._paths import PathOutsideCwdError, safe_resolve
+from robit.agent.tools._paths import PathOutsideCwdError, safe_resolve
 
 
 def test_relative_path_inside_cwd_resolves_to_absolute(tmp_path):

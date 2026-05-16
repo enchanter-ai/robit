@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.mcp.tool_proxy.MCPToolProxy."""
+"""Tests for robit.agent.mcp.tool_proxy.MCPToolProxy."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.mcp.client import MCPCallError, MCPClient
-from enchanter.agent.mcp.config import MCPServerConfig
-from enchanter.agent.mcp.tool_proxy import MCPToolProxy
-from enchanter.agent.tools._types import ToolContext
+from robit.agent.mcp.client import MCPCallError, MCPClient
+from robit.agent.mcp.config import MCPServerConfig
+from robit.agent.mcp.tool_proxy import MCPToolProxy
+from robit.agent.tools._types import ToolContext
 
 
 class StubClient:
@@ -157,7 +157,7 @@ async def test_missing_input_schema_defaults_to_permissive_object() -> None:
 
 async def test_proxy_conforms_to_tool_protocol() -> None:
     """MCPToolProxy must satisfy the Tool runtime protocol so ToolRegistry.register accepts it."""
-    from enchanter.agent.tools import Tool, ToolRegistry
+    from robit.agent.tools import Tool, ToolRegistry
 
     client = StubClient(
         tools=[{"name": "t", "description": "d", "inputSchema": {}}],

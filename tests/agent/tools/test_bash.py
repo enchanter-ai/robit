@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools.bash.BashTool.
+"""Tests for robit.agent.tools.bash.BashTool.
 
 These tests exercise the W5 pre-execution veto (the headline feature), the
 subprocess plumbing, the timeout + truncation behaviour, the env-allowlist
@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.tools._types import ToolContext
-from enchanter.agent.tools.bash import (
+from robit.agent.tools._types import ToolContext
+from robit.agent.tools.bash import (
     BashTool,
     _ENV_ALLOWLIST,
     _MAX_TIMEOUT_S,

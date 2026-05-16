@@ -1,0 +1,11 @@
+name = "import-graph-pagerank"
+description = "Advisory import-graph PageRank centrality engine. Builds cumulative import graph from filesystem write events; emits hotspot snapshot at post-session and cross-session. Fail-open."
+version = "1.0.0"
+phases = ["post-session", "cross-session"]
+required = false
+budget_tier = "high-only"
+adapter = "robit.engines.import_graph_pagerank.adapter:adapter"
+
+[topics]
+subscribes = ["session.start", "filesystem.write.completed"]
+emits = ["import-graph-pagerank.snapshot.ready", "import-graph-pagerank.hotspot.changed"]

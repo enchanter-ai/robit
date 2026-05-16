@@ -1,6 +1,6 @@
-"""Tests for enchanter.agent.login — CLI auth subcommands (Wave 17.1).
+"""Tests for robit.agent.login — CLI auth subcommands (Wave 17.1).
 
-The PKCE flow is mocked at the `enchanter.llm._chatgpt_auth.run_pkce_flow`
+The PKCE flow is mocked at the `robit.llm._chatgpt_auth.run_pkce_flow`
 seam so no real browser opens. `ENCHANTER_HOME` is redirected to `tmp_path`
 by the autouse `isolated_enchanter_home` fixture in conftest.py.
 """
@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent import login as login_mod
-from enchanter.agent.cli import main as cli_main
-from enchanter.llm._chatgpt_auth import (
+from robit.agent import login as login_mod
+from robit.agent.cli import main as cli_main
+from robit.llm._chatgpt_auth import (
     AuthDeniedError,
     AuthTimeoutError,
     ChatGptToken,
@@ -190,7 +190,7 @@ def test_logout_chatgpt_missing_file_is_noop(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# CLI argparse integration — `enchanter login --help` shows new subcommands
+# CLI argparse integration — `robit login --help` shows new subcommands
 # ---------------------------------------------------------------------------
 
 
@@ -214,7 +214,7 @@ def test_logout_help_lists_provider_and_all_flag(capsys):
 
 
 def test_login_without_provider_or_list_returns_1(capsys):
-    """`enchanter login` with no args is a usage error (exit 1)."""
+    """`robit login` with no args is a usage error (exit 1)."""
     rc = cli_main(["login"])
     assert rc == 1
     err = capsys.readouterr().err

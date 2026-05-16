@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.adapters.codex — Responses-API wire translation."""
+"""Tests for robit.proxy.adapters.codex — Responses-API wire translation."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from enchanter.proxy.adapters.codex import AdapterParseError, CodexAdapter
-from enchanter.proxy.canonical import (
+from robit.proxy.adapters.codex import AdapterParseError, CodexAdapter
+from robit.proxy.canonical import (
     CanonicalChunk,
     CanonicalResponse,
     CanonicalUsage,

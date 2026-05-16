@@ -1,11 +1,11 @@
-"""Tests for enchanter.conduct.frontmatter.parse_frontmatter."""
+"""Tests for robit.conduct.frontmatter.parse_frontmatter."""
 
 from pathlib import Path
 
 import pytest
 
-from enchanter.conduct.frontmatter import parse_frontmatter
-from enchanter.conduct.types import ConductFrontmatterError
+from robit.conduct.frontmatter import parse_frontmatter
+from robit.conduct.types import ConductFrontmatterError
 
 _FAKE_PATH = Path("fake/discipline.md")
 

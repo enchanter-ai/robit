@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from enchanter.llm import AnthropicClient, CompletionRequest, Message
+from robit.llm import AnthropicClient, CompletionRequest, Message
 
 
 # ---------------------------------------------------------------------------

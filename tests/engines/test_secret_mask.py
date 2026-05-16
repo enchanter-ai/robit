@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     EnchantedEvent,
     InProcessBus,
     Orchestrator,
@@ -22,8 +22,8 @@ from enchanter.core import (
     RequestContext,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.engines.secret_mask import adapter as mask
+from robit.core.bus import build_event
+from robit.engines.secret_mask import adapter as mask
 
 
 # ---------------------------------------------------------------------------

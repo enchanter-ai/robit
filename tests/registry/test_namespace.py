@@ -13,7 +13,7 @@
 
 import pytest
 
-from enchanter.registry import (
+from robit.registry import (
     NamespaceRegistry,
     SchemaDigestMismatchError,
     ToolDescriptor,

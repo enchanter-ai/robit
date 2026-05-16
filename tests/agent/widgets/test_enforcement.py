@@ -1,11 +1,11 @@
-"""Tests for enchanter.agent.widgets.enforcement — the chip overlay."""
+"""Tests for robit.agent.widgets.enforcement — the chip overlay."""
 
 from __future__ import annotations
 
 import pytest
 
-from enchanter.agent.loop import VetoFired
-from enchanter.agent.widgets.enforcement import (
+from robit.agent.loop import VetoFired
+from robit.agent.widgets.enforcement import (
     ConductChip,
     EnforcementChip,
     RedactionChip,

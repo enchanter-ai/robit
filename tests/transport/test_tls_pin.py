@@ -20,7 +20,7 @@ import os
 
 import pytest
 
-from enchanter.transport.tls_pin import (
+from robit.transport.tls_pin import (
     InMemoryTlsPinStore,
     PersistentTlsPinStore,
     TlsPinEntry,

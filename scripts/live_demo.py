@@ -91,7 +91,7 @@ async def main() -> int:
     os.environ["ENCHANTER_INFERENCE_ENABLED"] = "1"
     os.environ["ENCHANTER_INFERENCE_STATE"] = str(tmp / "inference")
 
-    from enchanter.proxy import ProxyServer, fastpath
+    from robit.proxy import ProxyServer, fastpath
     fastpath.load_config(force_reload=True)
 
     print(f"\n=== Starting proxy on http://127.0.0.1:{PORT} ===")
@@ -122,8 +122,8 @@ async def main() -> int:
     print(f"  tail -f {tmp / 'inference' / 'artifacts.jsonl'}")
     print()
 
-    with patch("enchanter.proxy.upstream.litellm.acompletion", AsyncMock(side_effect=_mock_acompletion)), \
-         patch("enchanter.proxy.fastpath.passthrough", AsyncMock(side_effect=_passthrough_mock)):
+    with patch("robit.proxy.upstream.litellm.acompletion", AsyncMock(side_effect=_mock_acompletion)), \
+         patch("robit.proxy.fastpath.passthrough", AsyncMock(side_effect=_passthrough_mock)):
         server = ProxyServer(host="127.0.0.1", port=PORT)
         host, port = await server.start()
         serve_task = asyncio.create_task(server.serve_forever())

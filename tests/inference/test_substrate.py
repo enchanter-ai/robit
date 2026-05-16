@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.inference.engine import (
+from robit.inference.engine import (
     LAMBDA,
     LLR_ELEVATE,
     LLR_RETIRE,
@@ -219,7 +219,7 @@ def test_state_dir_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     )
     assert (tmp_path / "artifacts.jsonl").exists()
     # Production path must NOT have been created.
-    from enchanter.inference.paths import DEFAULT_STATE_DIR
+    from robit.inference.paths import DEFAULT_STATE_DIR
 
     assert not (DEFAULT_STATE_DIR / "artifacts.jsonl").exists() or True  # existing prod is fine
     # Key assertion: only tmp_path received the write (no cross-contamination).

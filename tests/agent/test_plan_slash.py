@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.slash_commands.plan — /plan, /edit, /cancel, /execute."""
+"""Tests for robit.agent.slash_commands.plan — /plan, /edit, /cancel, /execute."""
 
 from __future__ import annotations
 
@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.slash import SlashContext
-from enchanter.agent.slash_commands import plan as plan_slash
-from enchanter.agent.slash_commands.plan import (
+from robit.agent.conversation import Conversation
+from robit.agent.slash import SlashContext
+from robit.agent.slash_commands import plan as plan_slash
+from robit.agent.slash_commands.plan import (
     CancelPlanCommand,
     EditStepCommand,
     ExecutePlanCommand,
     PlanCommand,
     _reset_scratch_for_tests,
 )
-from enchanter.agent.tools import EchoTool, ToolRegistry
+from robit.agent.tools import EchoTool, ToolRegistry
 
 
 # ---------------------------------------------------------------------------
@@ -44,13 +44,13 @@ def _ctx(tmp_path: Path) -> SlashContext:
 def _install_fake_planner(steps_json: str):
     """Replace the planner factory with one that returns a fixed plan."""
 
-    from enchanter.agent.plan import Planner
-    from enchanter.proxy.canonical import (
+    from robit.agent.plan import Planner
+    from robit.proxy.canonical import (
         CanonicalResponse,
         CanonicalUsage,
         TextPart,
     )
-    from enchanter.proxy.pipeline import PipelineResult
+    from robit.proxy.pipeline import PipelineResult
 
     async def dispatch(req):
         return PipelineResult(
@@ -246,7 +246,7 @@ async def test_execute_empty_plan_clears_state(tmp_path):
 
 
 def test_all_plan_commands_returns_four():
-    from enchanter.agent.slash_commands import all_plan_commands
+    from robit.agent.slash_commands import all_plan_commands
 
     cmds = all_plan_commands()
     names = {c.name for c in cmds}

@@ -1,4 +1,4 @@
-"""Tests for enchanter.protocol — JSON-RPC 2.0 codec and correlation layer.
+"""Tests for robit.protocol — JSON-RPC 2.0 codec and correlation layer.
 
 Coverage:
   [1]  encode Request → correct JSON shape
@@ -27,7 +27,7 @@ import asyncio
 import json
 import pytest
 
-from enchanter.protocol.jsonrpc import (
+from robit.protocol.jsonrpc import (
     ErrorCode,
     ErrorObject,
     Request,
@@ -38,7 +38,7 @@ from enchanter.protocol.jsonrpc import (
     encode,
     decode,
 )
-from enchanter.protocol.correlation import (
+from robit.protocol.correlation import (
     PendingRequests,
     JsonRpcResponseError,
     _RequestIdGenerator,
@@ -384,7 +384,7 @@ def test_newline_in_string_value_is_safely_escaped() -> None:
 def test_embedded_newline_error_is_raised_when_output_contains_literal_newline() -> None:
     # Monkeypatch json.dumps to return a string with a literal newline to
     # exercise the defence-in-depth guard.
-    import enchanter.protocol.jsonrpc as jrpc_mod
+    import robit.protocol.jsonrpc as jrpc_mod
     import json as _json_mod
     original = _json_mod.dumps
 

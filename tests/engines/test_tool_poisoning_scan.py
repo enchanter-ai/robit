@@ -15,23 +15,23 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.tool_poisoning_scan import (
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.tool_poisoning_scan import (
     ReplayCache,
     SandboxConfirmation,
     ScanVerdict,
     ToolPoisoningScan,
     adapter as default_adapter,
 )
-from enchanter.engines.tool_poisoning_scan.patterns import VETO_THRESHOLD
+from robit.engines.tool_poisoning_scan.patterns import VETO_THRESHOLD
 
 
 # ---------------------------------------------------------------------------

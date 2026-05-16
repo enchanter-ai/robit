@@ -1,4 +1,4 @@
-"""Tests for :mod:`enchanter.proxy.adapters.gemini` — wire translation."""
+"""Tests for :mod:`robit.proxy.adapters.gemini` — wire translation."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from enchanter.proxy.adapters.gemini import AdapterParseError, GeminiAdapter
-from enchanter.proxy.canonical import (
+from robit.proxy.adapters.gemini import AdapterParseError, GeminiAdapter
+from robit.proxy.canonical import (
     CanonicalChunk,
     CanonicalResponse,
     CanonicalUsage,

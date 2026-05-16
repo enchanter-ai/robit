@@ -1,11 +1,11 @@
-"""Tests for enchanter.agent.mcp.config.load_mcp_config."""
+"""Tests for robit.agent.mcp.config.load_mcp_config."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from enchanter.agent.mcp.config import MCPServerConfig, load_mcp_config
+from robit.agent.mcp.config import MCPServerConfig, load_mcp_config
 
 
 def test_missing_file_returns_empty(tmp_path: Path) -> None:

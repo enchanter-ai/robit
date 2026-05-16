@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from enchanter.mcp_server.dispatcher import Dispatcher, PROTOCOL_VERSION
-from enchanter.mcp_server.tools import Tool, ToolRegistry, register_default_tools
+from robit.mcp_server.dispatcher import Dispatcher, PROTOCOL_VERSION
+from robit.mcp_server.tools import Tool, ToolRegistry, register_default_tools
 
 
 def _make_dispatcher() -> Dispatcher:
@@ -41,8 +41,8 @@ async def test_tools_list_returns_registered_tools() -> None:
     assert resp is not None
     obj = _decode(resp)
     names = {t["name"] for t in obj["result"]["tools"]}
-    assert "enchanter.scan_secrets" in names
-    assert "enchanter.check_destructive_op" in names
+    assert "robit.scan_secrets" in names
+    assert "robit.check_destructive_op" in names
     # Each tool exposes an inputSchema
     for t in obj["result"]["tools"]:
         assert isinstance(t["inputSchema"], dict)

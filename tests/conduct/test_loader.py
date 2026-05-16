@@ -1,11 +1,11 @@
-"""Tests for enchanter.conduct.loader.load_conduct using temporary directories."""
+"""Tests for robit.conduct.loader.load_conduct using temporary directories."""
 
 from pathlib import Path
 
 import pytest
 
-from enchanter.conduct.loader import load_conduct
-from enchanter.conduct.types import ConductFrontmatterError
+from robit.conduct.loader import load_conduct
+from robit.conduct.types import ConductFrontmatterError
 
 
 # ---------------------------------------------------------------------------

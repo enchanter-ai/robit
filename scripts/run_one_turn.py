@@ -13,8 +13,8 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from enchanter.composer.conduct import compose_conduct_xml, select_rules
-from enchanter.conduct import load_conduct
+from robit.composer.conduct import compose_conduct_xml, select_rules
+from robit.conduct import load_conduct
 
 # Minimal conduct subset for smoke runs. The full corpus is ~170KB; for a single
 # turn we only need the rules that shape day-to-day agent behavior. Tune freely.
@@ -25,19 +25,19 @@ _SMOKE_RULES: set[str] = {
     "refusal-and-recovery",
     "formatting",
 }
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.llm import AnthropicClient
-from enchanter.llm.types import CompletionRequest, Message
-from enchanter.loader import load_engine_registry
-from enchanter.runtime.models_registry import ModelsRegistry
-from enchanter.runtime.tier_router import TierRouter
+from robit.core.bus import build_event
+from robit.llm import AnthropicClient
+from robit.llm.types import CompletionRequest, Message
+from robit.loader import load_engine_registry
+from robit.runtime.models_registry import ModelsRegistry
+from robit.runtime.tier_router import TierRouter
 
 
 def _rule_to_dict(r):

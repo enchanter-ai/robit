@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.events.inference_substrate — Wave 13.2 Agent F.
+"""Tests for robit.proxy.events.inference_substrate — Wave 13.2 Agent F.
 
 Coverage:
 
@@ -26,12 +26,12 @@ from unittest.mock import patch
 
 import pytest
 
-from enchanter.core import InProcessBus
-from enchanter.proxy.canonical import CanonicalRequest, Message, TextPart
-from enchanter.proxy.events import EmitPhase, load_emitters
-from enchanter.proxy.events._types import EmitContext
-from enchanter.proxy.events import inference_substrate as is_module
-from enchanter.proxy.events.inference_substrate import (
+from robit.core import InProcessBus
+from robit.proxy.canonical import CanonicalRequest, Message, TextPart
+from robit.proxy.events import EmitPhase, load_emitters
+from robit.proxy.events._types import EmitContext
+from robit.proxy.events import inference_substrate as is_module
+from robit.proxy.events.inference_substrate import (
     InferenceSubstrateEmitter,
     emitter as is_emitter,
 )

@@ -1,10 +1,10 @@
-"""Tests for enchanter.composer.conduct — compose_conduct_xml and select_rules."""
+"""Tests for robit.composer.conduct — compose_conduct_xml and select_rules."""
 
 import xml.etree.ElementTree as ET
 
 import pytest
 
-from enchanter.composer.conduct import compose_conduct_xml, select_rules
+from robit.composer.conduct import compose_conduct_xml, select_rules
 
 
 # ---------------------------------------------------------------------------

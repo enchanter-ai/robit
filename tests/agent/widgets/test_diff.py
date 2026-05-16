@@ -1,4 +1,4 @@
-"""Tests for ``enchanter.agent.widgets.diff``.
+"""Tests for ``robit.agent.widgets.diff``.
 
 Covers:
 
@@ -22,7 +22,7 @@ from rich.console import Console
 from textual.app import App, ComposeResult
 from textual.widgets import Button
 
-from enchanter.agent.widgets.diff import ApprovalPrompt, DiffView
+from robit.agent.widgets.diff import ApprovalPrompt, DiffView
 
 
 # ---------------------------------------------------------------------------

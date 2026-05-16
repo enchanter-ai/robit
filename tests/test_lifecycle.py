@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     LIFECYCLE_PHASES,
     Orchestrator,
@@ -24,9 +24,9 @@ from enchanter.core import (
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.plugin import PluginTopics
-from enchanter.core.events import EnchantedEvent
-from enchanter.core.context import LifecyclePhase, RequestContext
+from robit.core.plugin import PluginTopics
+from robit.core.events import EnchantedEvent
+from robit.core.context import LifecyclePhase, RequestContext
 
 
 class NoOpPlugin:
@@ -164,8 +164,8 @@ async def test_no_plugins_runs_cleanly():
 import asyncio
 import time
 
-from enchanter.core.events import EnchantedEvent
-from enchanter.core.context import LifecyclePhase, RequestContext, LIFECYCLE_PHASES
+from robit.core.events import EnchantedEvent
+from robit.core.context import LifecyclePhase, RequestContext, LIFECYCLE_PHASES
 
 
 class _RecorderPlugin:

@@ -20,16 +20,16 @@ from typing import Union
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.loop import AgentLoop
-from enchanter.agent.slash import SlashContext, builtin_registry
-from enchanter.agent.tools import EchoTool, ToolRegistry
-from enchanter.proxy.canonical import (
+from robit.agent.conversation import Conversation
+from robit.agent.loop import AgentLoop
+from robit.agent.slash import SlashContext, builtin_registry
+from robit.agent.tools import EchoTool, ToolRegistry
+from robit.proxy.canonical import (
     CanonicalResponse,
     CanonicalUsage,
     TextPart,
 )
-from enchanter.proxy.pipeline import PipelineResult, VetoResult
+from robit.proxy.pipeline import PipelineResult, VetoResult
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ def test_build_app_class_returns_textual_app_subclass():
     """The lazy builder returns a real Textual App subclass."""
     from textual.app import App as TextualApp
 
-    from enchanter.agent.app import _build_app_class
+    from robit.agent.app import _build_app_class
 
     cls = _build_app_class()
     assert issubclass(cls, TextualApp)
@@ -88,9 +88,9 @@ def test_compose_yields_header_repl_footer(loop_and_ctx):
     """compose() returns Header, ReplWidget, FooterWidget in order."""
     from textual.widgets import Header
 
-    from enchanter.agent.app import _build_app_class
-    from enchanter.agent.widgets.footer import FooterWidget
-    from enchanter.agent.widgets.repl import ReplWidget
+    from robit.agent.app import _build_app_class
+    from robit.agent.widgets.footer import FooterWidget
+    from robit.agent.widgets.repl import ReplWidget
 
     loop, ctx = loop_and_ctx
     App = _build_app_class()
@@ -107,7 +107,7 @@ def test_repl_widget_composes_log_input_and_approval_slot():
     from textual.containers import Container
     from textual.widgets import Input, RichLog
 
-    from enchanter.agent.widgets.repl import ReplWidget
+    from robit.agent.widgets.repl import ReplWidget
 
     widget = ReplWidget()
     children = list(widget.compose())
@@ -125,7 +125,7 @@ def test_footer_widget_stores_model_and_session():
     the constructor preserves the values; the runtime test below confirms
     the widget actually mounts and renders inside a running app.
     """
-    from enchanter.agent.widgets.footer import FooterWidget
+    from robit.agent.widgets.footer import FooterWidget
 
     f = FooterWidget(model="claude-sonnet-4-5", session_id="deadbeef" * 4)
     assert f._model == "claude-sonnet-4-5"
@@ -140,9 +140,9 @@ def test_footer_widget_stores_model_and_session():
 @pytest.mark.asyncio
 async def test_app_mounts_without_crash(loop_and_ctx):
     """The app boots, mounts widgets, and exits cleanly."""
-    from enchanter.agent.app import _build_app_class
-    from enchanter.agent.widgets.footer import FooterWidget
-    from enchanter.agent.widgets.repl import ReplWidget
+    from robit.agent.app import _build_app_class
+    from robit.agent.widgets.footer import FooterWidget
+    from robit.agent.widgets.repl import ReplWidget
 
     loop, ctx = loop_and_ctx
     App = _build_app_class()
@@ -158,7 +158,7 @@ async def test_ctrl_l_clears_the_log(loop_and_ctx):
     """Ctrl-L clears the RichLog widget."""
     from textual.widgets import RichLog
 
-    from enchanter.agent.app import _build_app_class
+    from robit.agent.app import _build_app_class
 
     loop, ctx = loop_and_ctx
     App = _build_app_class()
@@ -183,7 +183,7 @@ async def test_unknown_slash_prints_error_message(loop_and_ctx):
     """Submitting `/nope` writes the unknown-command message to the log."""
     from textual.widgets import Input, RichLog
 
-    from enchanter.agent.app import _build_app_class
+    from robit.agent.app import _build_app_class
 
     loop, ctx = loop_and_ctx
     App = _build_app_class()
@@ -209,7 +209,7 @@ async def test_unknown_slash_prints_error_message(loop_and_ctx):
 @pytest.mark.asyncio
 async def test_escape_cancels_in_flight_turn(loop_and_ctx):
     """Esc cancels a running turn task without crashing the app."""
-    from enchanter.agent.app import _build_app_class
+    from robit.agent.app import _build_app_class
 
     loop, ctx = loop_and_ctx
 
@@ -243,7 +243,7 @@ async def test_one_shot_text_turn_renders_assistant_line(loop_and_ctx):
     """End-to-end: submit a prompt, mock returns text, log shows it."""
     from textual.widgets import Input
 
-    from enchanter.agent.app import _build_app_class
+    from robit.agent.app import _build_app_class
 
     loop, ctx = loop_and_ctx
     App = _build_app_class()

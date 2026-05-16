@@ -13,24 +13,24 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     PluginAck,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.intent_anchor import IntentAnchor, lcs_length, lcs_ratio
-from enchanter.engines.intent_anchor.hmm import (
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.intent_anchor import IntentAnchor, lcs_length, lcs_ratio
+from robit.engines.intent_anchor.hmm import (
     HMM,
     DEFAULT_EMISSIONS,
     DEFAULT_PRIOR,
     DEFAULT_TRANSITIONS,
     ObservationBucket,
 )
-from enchanter.engines.intent_anchor.store import IntentAnchorStore, tokenize
+from robit.engines.intent_anchor.store import IntentAnchorStore, tokenize
 
 
 # ===========================================================================

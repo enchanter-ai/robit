@@ -22,8 +22,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from enchanter.llm import ChatGptClient, CompletionRequest, Message
-from enchanter.llm._chatgpt_auth import ChatGptToken
+from robit.llm import ChatGptClient, CompletionRequest, Message
+from robit.llm._chatgpt_auth import ChatGptToken
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ def _make_urlopen_capture():
 def _new_client_with(token: ChatGptToken) -> ChatGptClient:
     """Construct a ChatGptClient cleanly (no cache file, no env)."""
     with patch(
-        "enchanter.llm.chatgpt_client.load_cached_token", return_value=None
+        "robit.llm.chatgpt_client.load_cached_token", return_value=None
     ):
         return ChatGptClient(token=token)
 
@@ -200,7 +200,7 @@ def test_complete_on_401_refreshes_token_and_retries(monkeypatch):
         messages=[Message(role="user", content="hi")],
     )
     with patch("urllib.request.urlopen", side_effect=fake_urlopen), patch(
-        "enchanter.llm.chatgpt_client.refresh_if_needed", side_effect=fake_refresh
+        "robit.llm.chatgpt_client.refresh_if_needed", side_effect=fake_refresh
     ):
         resp = asyncio.run(client.complete(req))
 
@@ -227,7 +227,7 @@ def test_complete_on_persistent_401_raises_with_clear_message(monkeypatch):
         messages=[Message(role="user", content="hi")],
     )
     with patch("urllib.request.urlopen", side_effect=fake_urlopen), patch(
-        "enchanter.llm.chatgpt_client.refresh_if_needed", side_effect=fake_refresh
+        "robit.llm.chatgpt_client.refresh_if_needed", side_effect=fake_refresh
     ):
         with pytest.raises(urllib.error.HTTPError) as exc:
             asyncio.run(client.complete(req))

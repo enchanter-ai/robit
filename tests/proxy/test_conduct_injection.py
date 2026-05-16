@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.conduct — system-prompt injection contract."""
+"""Tests for robit.proxy.conduct — system-prompt injection contract."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from enchanter.proxy import conduct as proxy_conduct
-from enchanter.proxy.canonical import CanonicalRequest, Message, TextPart
-from enchanter.proxy.conduct import DEFAULT_PROXY_RULES, apply_conduct_to_request
+from robit.proxy import conduct as proxy_conduct
+from robit.proxy.canonical import CanonicalRequest, Message, TextPart
+from robit.proxy.conduct import DEFAULT_PROXY_RULES, apply_conduct_to_request
 
 
 # A minimal fake ConductRule that quacks like the real one for ``_rule_to_dict``.

@@ -13,13 +13,13 @@ from unittest.mock import patch
 
 import pytest
 
-from enchanter.llm import (
+from robit.llm import (
     ChatGptClient,
     CompletionRequest,
     ConfigurationError,
     Message,
 )
-from enchanter.llm._chatgpt_auth import ChatGptToken
+from robit.llm._chatgpt_auth import ChatGptToken
 
 
 def _fresh(**overrides) -> ChatGptToken:
@@ -41,7 +41,7 @@ def _fresh(**overrides) -> ChatGptToken:
 
 def test_init_raises_when_no_credentials_anywhere(monkeypatch) -> None:
     monkeypatch.delenv("CHATGPT_SESSION_TOKEN", raising=False)
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         with pytest.raises(ConfigurationError):
             ChatGptClient()
 
@@ -49,7 +49,7 @@ def test_init_raises_when_no_credentials_anywhere(monkeypatch) -> None:
 def test_init_resolves_from_explicit_arg(monkeypatch) -> None:
     monkeypatch.delenv("CHATGPT_SESSION_TOKEN", raising=False)
     token = _fresh()
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         client = ChatGptClient(token=token)
     assert client.token is token
     assert client.auth_mode == "chatgpt-subscription"
@@ -57,7 +57,7 @@ def test_init_resolves_from_explicit_arg(monkeypatch) -> None:
 
 def test_init_resolves_from_env_var_bare_token(monkeypatch) -> None:
     monkeypatch.setenv("CHATGPT_SESSION_TOKEN", "bare-access-token-string")
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         client = ChatGptClient()
     assert client.token.access_token == "bare-access-token-string"
     assert client.token.refresh_token is None
@@ -74,7 +74,7 @@ def test_init_resolves_from_env_var_json_blob(monkeypatch) -> None:
         }
     )
     monkeypatch.setenv("CHATGPT_SESSION_TOKEN", blob)
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         client = ChatGptClient()
     assert client.token.access_token == "env-access"
     assert client.token.refresh_token == "env-refresh"
@@ -85,7 +85,7 @@ def test_init_resolves_from_cache_file(monkeypatch) -> None:
     monkeypatch.delenv("CHATGPT_SESSION_TOKEN", raising=False)
     cached = _fresh(access_token="from-cache")
     with patch(
-        "enchanter.llm.chatgpt_client.load_cached_token", return_value=cached
+        "robit.llm.chatgpt_client.load_cached_token", return_value=cached
     ):
         client = ChatGptClient()
     assert client.token.access_token == "from-cache"
@@ -98,7 +98,7 @@ def test_init_resolves_from_cache_file(monkeypatch) -> None:
 
 def test_has_valid_token_true_for_fresh(monkeypatch) -> None:
     monkeypatch.delenv("CHATGPT_SESSION_TOKEN", raising=False)
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         client = ChatGptClient(token=_fresh())
     assert client.has_valid_token() is True
 
@@ -106,7 +106,7 @@ def test_has_valid_token_true_for_fresh(monkeypatch) -> None:
 def test_has_valid_token_false_for_expired(monkeypatch) -> None:
     monkeypatch.delenv("CHATGPT_SESSION_TOKEN", raising=False)
     expired = _fresh(expires_at=time.time() - 60)
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         client = ChatGptClient(token=expired)
     assert client.has_valid_token() is False
 
@@ -123,7 +123,7 @@ def test_complete_no_longer_raises_not_implemented(monkeypatch) -> None:
     test only verifies the stub-removal commitment.
     """
     monkeypatch.delenv("CHATGPT_SESSION_TOKEN", raising=False)
-    with patch("enchanter.llm.chatgpt_client.load_cached_token", return_value=None):
+    with patch("robit.llm.chatgpt_client.load_cached_token", return_value=None):
         client = ChatGptClient(token=_fresh())
 
     fake_body = {
@@ -145,7 +145,7 @@ def test_complete_no_longer_raises_not_implemented(monkeypatch) -> None:
         messages=[Message(role="user", content="hi")],
     )
     with patch(
-        "enchanter.llm.chatgpt_client._post_responses", return_value=fake_body
+        "robit.llm.chatgpt_client._post_responses", return_value=fake_body
     ):
         resp = asyncio.run(client.complete(req))
     assert resp.text == "hi"

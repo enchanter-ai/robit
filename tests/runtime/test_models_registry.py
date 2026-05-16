@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.runtime.models_registry import (
+from robit.runtime.models_registry import (
     ModelEntry,
     ModelsRegistry,
     UnknownFamilyError,

@@ -26,16 +26,16 @@ dev = [
 
 [project.scripts]
 # The inspector binary is `insighter` (the inspector-side CLI). The
-# inspector package lives at `enchanter.insighter`.
-insighter = "enchanter.insighter:main"
-# `enchanter` is the coding-agent CLI — Textual REPL with enchanter
+# inspector package lives at `robit.insighter`.
+insighter = "robit.insighter:main"
+# `robit` is the coding-agent CLI — Textual REPL with enchanter
 # enforcement baked in. Wave 15.0 ships the foundation skeleton; Wave 15.1+
 # extend it.
-enchanter = "enchanter.agent.cli:main"
+robit = "robit.agent.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["enchanter*"]
+include = ["robit*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -1,4 +1,4 @@
-# Authentication — `enchanter` and `insighter`
+# Authentication — `robit` and `insighter`
 
 > One page covering: where each auth mode applies, how tokens resolve,
 > where they cache, what's logged. Accurate as of 0.7.0; if behavior
@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-Two binaries (`enchanter` coding agent + `insighter` inspector/proxy)
+Two binaries (`robit` coding agent + `insighter` inspector/proxy)
 support three first-class auth modes: Anthropic API key, Claude.ai
 OAuth (Pro/Max subscription), and ChatGPT subscription (Plus/Team/
 Enterprise). The proxy adds three honest pass-through patterns —
@@ -28,7 +28,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 ```
 
 ```bash
-enchanter "refactor auth.py"
+robit "refactor auth.py"
 ```
 
 ### "I want to use my Claude.ai Pro/Max subscription"
@@ -39,51 +39,51 @@ CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat...
 ```
 
 ```bash
-enchanter "refactor auth.py"
+robit "refactor auth.py"
 ```
 
 ### "I want to use my ChatGPT subscription"
 
 ```bash
-enchanter login chatgpt    # opens browser, saves token to ~/.enchanter/chatgpt-token.json
-enchanter "refactor auth.py"
+robit login chatgpt    # opens browser, saves token to ~/.enchanter/chatgpt-token.json
+robit "refactor auth.py"
 ```
 
-`enchanter login --list` shows cached tokens; `enchanter logout chatgpt`
+`robit login --list` shows cached tokens; `robit logout chatgpt`
 (or `--all`) clears them.
 
 ## Environment variables — the full matrix
 
 | Env var | Used by | Auth mode | Notes |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | enchanter, insighter | API key | Highest precedence in `AnthropicClient` resolution (`enchanter/llm/anthropic_client.py:53`) |
-| `CLAUDE_CODE_OAUTH_TOKEN` | enchanter, insighter | Claude.ai OAuth | Sent as `Authorization: Bearer …` plus `anthropic-beta: oauth-2025-04-20` (`enchanter/llm/anthropic_client.py:56`, `:72`) |
-| `ANTHROPIC_AUTH_TOKEN` | enchanter, insighter | Claude.ai OAuth | Alt env name; same code path (`enchanter/llm/anthropic_client.py:57`) |
-| `OPENAI_API_KEY` | enchanter (when model is `gpt-*` / `o*`), insighter proxy upstream | API key | LiteLLM consumes (`enchanter/proxy/upstream.py:15`) |
-| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | enchanter (when model is `gemini-*`), insighter proxy upstream | API key | LiteLLM consumes (`enchanter/proxy/upstream.py:17`) |
-| `CHATGPT_SESSION_TOKEN` | enchanter | ChatGPT subscription | JSON blob or bare access_token. Rarely set directly — prefer `enchanter login chatgpt` (`enchanter/llm/chatgpt_client.py:83`) |
-| `ENCHANTER_HOME` | enchanter, insighter | (config dir override) | Default `~/.enchanter` POSIX, `%APPDATA%\enchanter` Windows (`enchanter/llm/_chatgpt_auth.py:41`, `enchanter/_env.py:36`) |
-| `ENCHANTER_ALLOW_FASTPATH_BYPASS` | insighter proxy | (operator gate) | Must be exactly `1` to enable fast path (`enchanter/proxy/fastpath.py:72`, `:151`) |
-| `ENCHANTER_STATE_DIR` | insighter proxy | (state path override) | Overrides where audit JSONLs and allowlist live (`enchanter/proxy/fastpath.py:73`, `:109`) |
-| `ENCHANTER_AGENT_MOCK` | enchanter | (test) | Use deterministic mock LLM; no real network call (`enchanter/agent/cli.py:15`) |
+| `ANTHROPIC_API_KEY` | robit, insighter | API key | Highest precedence in `AnthropicClient` resolution (`robit/llm/anthropic_client.py:53`) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | robit, insighter | Claude.ai OAuth | Sent as `Authorization: Bearer …` plus `anthropic-beta: oauth-2025-04-20` (`robit/llm/anthropic_client.py:56`, `:72`) |
+| `ANTHROPIC_AUTH_TOKEN` | robit, insighter | Claude.ai OAuth | Alt env name; same code path (`robit/llm/anthropic_client.py:57`) |
+| `OPENAI_API_KEY` | robit (when model is `gpt-*` / `o*`), insighter proxy upstream | API key | LiteLLM consumes (`robit/proxy/upstream.py:15`) |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | robit (when model is `gemini-*`), insighter proxy upstream | API key | LiteLLM consumes (`robit/proxy/upstream.py:17`) |
+| `CHATGPT_SESSION_TOKEN` | robit | ChatGPT subscription | JSON blob or bare access_token. Rarely set directly — prefer `robit login chatgpt` (`robit/llm/chatgpt_client.py:83`) |
+| `ENCHANTER_HOME` | robit, insighter | (config dir override) | Default `~/.enchanter` POSIX, `%APPDATA%\enchanter` Windows (`robit/llm/_chatgpt_auth.py:41`, `robit/_env.py:36`) |
+| `ENCHANTER_ALLOW_FASTPATH_BYPASS` | insighter proxy | (operator gate) | Must be exactly `1` to enable fast path (`robit/proxy/fastpath.py:72`, `:151`) |
+| `ENCHANTER_STATE_DIR` | insighter proxy | (state path override) | Overrides where audit JSONLs and allowlist live (`robit/proxy/fastpath.py:73`, `:109`) |
+| `ENCHANTER_AGENT_MOCK` | robit | (test) | Use deterministic mock LLM; no real network call (`robit/agent/cli.py:15`) |
 
 ## `.env` loading
 
-Wave 17.0 added stdlib `.env` auto-loading. Both `enchanter` and
-`insighter` call `enchanter._env.load_env_files()` at the top of
-`main()` (`enchanter/agent/cli.py:284`, `enchanter/insighter/__init__.py:630`).
+Wave 17.0 added stdlib `.env` auto-loading. Both `robit` and
+`insighter` call `robit._env.load_env_files()` at the top of
+`main()` (`robit/agent/cli.py:284`, `robit/insighter/__init__.py:630`).
 
-**Lookup precedence** (highest wins; `enchanter/_env.py:202`):
+**Lookup precedence** (highest wins; `robit/_env.py:202`):
 
 1. `<cwd>/.env`
 2. `<user_dir>/.env` — `ENCHANTER_HOME/.env` if set, else `%APPDATA%\enchanter\.env`
-   (Windows) or `~/.enchanter/.env` (POSIX) (`enchanter/_env.py:36`).
+   (Windows) or `~/.enchanter/.env` (POSIX) (`robit/_env.py:36`).
 
 The shell still wins by default — `os.environ` values already present
-are not overwritten (`enchanter/_env.py:218`). Inside one file, the
+are not overwritten (`robit/_env.py:218`). Inside one file, the
 last definition of a key wins.
 
-**Syntax supported** (`enchanter/_env.py:97`):
+**Syntax supported** (`robit/_env.py:97`):
 - `KEY=value`, `# comments`, blank lines.
 - Double-quoted strings: `\n \t \\ \"` escapes.
 - Single-quoted strings: literal.
@@ -96,21 +96,21 @@ Invalid lines are logged at WARNING and skipped — parsing continues.
 
 | File | Created by | Lifetime |
 |---|---|---|
-| `~/.enchanter/chatgpt-token.json` | `enchanter login chatgpt` | Refreshed automatically until refresh fails (`enchanter/llm/_chatgpt_auth.py:196`) |
+| `~/.enchanter/chatgpt-token.json` | `robit login chatgpt` | Refreshed automatically until refresh fails (`robit/llm/_chatgpt_auth.py:196`) |
 | `~/.enchanter/anthropic-token.json` | (none — placeholder; see "Honest limitations") | n/a |
-| `<state_dir>/fastpath-allowlist.json` | operator (manual) | Persistent (`enchanter/proxy/fastpath.py:125`) |
-| `<state_dir>/audit/fastpath-bypass.jsonl` | proxy fast-path | Persistent, append-only (`enchanter/proxy/fastpath.py:129`) |
+| `<state_dir>/fastpath-allowlist.json` | operator (manual) | Persistent (`robit/proxy/fastpath.py:125`) |
+| `<state_dir>/audit/fastpath-bypass.jsonl` | proxy fast-path | Persistent, append-only (`robit/proxy/fastpath.py:129`) |
 
 Default `<state_dir>` is `<repo>/state` when a `pyproject.toml` is
 detected nearby, else `~/.enchanter` (POSIX) or `%APPDATA%\enchanter\`
-(Windows) — see `enchanter/proxy/fastpath.py:109`. Override with
+(Windows) — see `robit/proxy/fastpath.py:109`. Override with
 `ENCHANTER_STATE_DIR`.
 
-## `enchanter` coding agent — auth resolution
+## `robit` coding agent — auth resolution
 
 ### Anthropic (API key + Claude.ai OAuth)
 
-`AnthropicClient.__init__` (`enchanter/llm/anthropic_client.py:35`)
+`AnthropicClient.__init__` (`robit/llm/anthropic_client.py:35`)
 resolves credentials in this order when neither constructor arg is
 given:
 
@@ -125,43 +125,43 @@ to accept OAuth-issued tokens (`:72`).
 
 ### ChatGPT subscription
 
-`ChatGptClient.__init__` (`enchanter/llm/chatgpt_client.py:69`) walks
+`ChatGptClient.__init__` (`robit/llm/chatgpt_client.py:69`) walks
 this resolution chain:
 
 1. Explicit `token=` argument.
 2. `CHATGPT_SESSION_TOKEN` env var — JSON blob (matching the cache
    shape) or bare `access_token` (treated as 1-hour expiry, no refresh).
 3. Cache file at `~/.enchanter/chatgpt-token.json`
-   (`enchanter/llm/_chatgpt_auth.py:41`).
+   (`robit/llm/_chatgpt_auth.py:41`).
 4. Otherwise raises `ConfigurationError`.
 
 Tokens are refreshed automatically when within 60 s of expiry
-(`enchanter/llm/_chatgpt_auth.py:196`). On a 401, the client attempts
+(`robit/llm/_chatgpt_auth.py:196`). On a 401, the client attempts
 one refresh + retry; a second 401 raises with a
-"re-run `codex login`" message (`enchanter/llm/chatgpt_client.py:174`).
+"re-run `codex login`" message (`robit/llm/chatgpt_client.py:174`).
 
 The upstream endpoint is hardcoded:
 `https://chatgpt.com/backend-api/codex/responses`
-(`enchanter/llm/chatgpt_client.py:43`). Headers added: `Authorization:
+(`robit/llm/chatgpt_client.py:43`). Headers added: `Authorization:
 Bearer <jwt>`, `ChatGPT-Account-ID: <acct>` (when present in the JWT
-claim — `enchanter/llm/_chatgpt_auth.py:112`). This shape is mirrored
+claim — `robit/llm/_chatgpt_auth.py:112`). This shape is mirrored
 from Codex CLI; see `docs/architecture/audits/codex-protocol.md` for
 the audit.
 
-### `enchanter login` / `logout` (Wave 17.1)
+### `robit login` / `logout` (Wave 17.1)
 
-`enchanter.agent.login` (`enchanter/agent/login.py`) provides:
+`robit.agent.login` (`robit/agent/login.py`) provides:
 
-- `enchanter login chatgpt` — runs the PKCE flow
-  (`enchanter/llm/_chatgpt_auth.py:280`), saves the token to
+- `robit login chatgpt` — runs the PKCE flow
+  (`robit/llm/_chatgpt_auth.py:280`), saves the token to
   `~/.enchanter/chatgpt-token.json`.
-- `enchanter login anthropic` — prints a stub explaining there's no
+- `robit login anthropic` — prints a stub explaining there's no
   standalone OAuth flow today; use Claude Code's `/login` and export
-  `CLAUDE_CODE_OAUTH_TOKEN` (`enchanter/agent/login.py:126`).
-- `enchanter login --list` — summarises cached tokens, redacts secret
-  prefixes, prints expiry (`enchanter/agent/login.py:192`).
-- `enchanter logout <provider>` or `--all` — deletes token files
-  (`enchanter/agent/login.py:227`).
+  `CLAUDE_CODE_OAUTH_TOKEN` (`robit/agent/login.py:126`).
+- `robit login --list` — summarises cached tokens, redacts secret
+  prefixes, prints expiry (`robit/agent/login.py:192`).
+- `robit logout <provider>` or `--all` — deletes token files
+  (`robit/agent/login.py:227`).
 
 Exit codes: 0 success; 1 user denied / generic; 2 timeout; 3 other
 auth error; 130 Ctrl-C.
@@ -172,12 +172,12 @@ The proxy is started with `insighter serve --proxy HOST:PORT`. It
 accepts requests in four wire formats (Anthropic Messages, OpenAI Chat
 Completions, Gemini Generate, Codex Responses) and forwards them
 upstream. Auth is decided per `ProxyServer` flag (see
-`enchanter/proxy/server.py:135`).
+`robit/proxy/server.py:135`).
 
 ### Pattern A: operator pays (default)
 
 The operator sets provider keys in the proxy process's environment.
-LiteLLM picks them up internally (`enchanter/proxy/upstream.py:15-18`),
+LiteLLM picks them up internally (`robit/proxy/upstream.py:15-18`),
 and any auth header the host agent sent is **ignored** for upstream
 routing.
 
@@ -187,9 +187,9 @@ lab proxy that enforces conduct on third-party traffic.
 ### Pattern B: host agent pays (`--passthrough-auth`)
 
 When the server is started with `passthrough_auth=True`
-(`enchanter/proxy/server.py:169`), the inbound auth header is
+(`robit/proxy/server.py:169`), the inbound auth header is
 extracted by `_extract_inbound_auth`
-(`enchanter/proxy/server.py:640`):
+(`robit/proxy/server.py:640`):
 
 | Family | Header read | Resulting kind |
 |---|---|---|
@@ -202,7 +202,7 @@ extracted by `_extract_inbound_auth`
 
 The credential is stashed on `canonical_req.metadata`
 (`_enchanter_passthrough_auth`) and consumed by `upstream.py`'s
-`_passthrough_auth_kwargs` (`enchanter/proxy/upstream.py:144`):
+`_passthrough_auth_kwargs` (`robit/proxy/upstream.py:144`):
 
 - `anthropic-api-key`, `openai-bearer`, `gemini-api-key` → `api_key`
   kwarg on LiteLLM.
@@ -222,12 +222,12 @@ veto-able pattern gates) on every request.
 
 ### Pattern C: fast-path bypass (skip enforcement)
 
-`enchanter/proxy/fastpath.py` implements a byte-pass-through that
+`robit/proxy/fastpath.py` implements a byte-pass-through that
 **skips conduct injection and the lifecycle trust-gate entirely**. It
 fires only when **all of**:
 
 1. `ENCHANTER_ALLOW_FASTPATH_BYPASS=1` at process start
-   (`enchanter/proxy/fastpath.py:72`, `:151`).
+   (`robit/proxy/fastpath.py:72`, `:151`).
 2. SHA-256 of the caller's auth header value is listed in
    `<state_dir>/fastpath-allowlist.json` (`:253`).
 3. Method is `POST`, path is one of `/v1/messages`,
@@ -241,7 +241,7 @@ Auth header is forwarded **verbatim** to the upstream
 (`:307`): `x-api-key` for Anthropic, `Authorization: Bearer …` for
 OpenAI, `x-goog-api-key` for Gemini. Every bypass appends a record to
 `<state_dir>/audit/fastpath-bypass.jsonl` and the response carries
-`X-Enchanter-FastPath: bypass` (`enchanter/proxy/server.py:298`).
+`X-Enchanter-FastPath: bypass` (`robit/proxy/server.py:298`).
 
 **This bypasses pattern vetos, secret mask, cost ledger.** Treat
 `fastpath-allowlist.json` as a sensitive file (use 0600 on POSIX).
@@ -287,31 +287,31 @@ will see `/v1/chat/completions` requests.
 
 - **Fast-path bypass audit**
   (`<state_dir>/audit/fastpath-bypass.jsonl`,
-  `enchanter/proxy/fastpath.py:356`): timestamp (epoch + ISO),
+  `robit/proxy/fastpath.py:356`): timestamp (epoch + ISO),
   upstream provider, **short** key hash (first 12 chars of SHA-256;
   not the credential), model, body size, upstream status. **No prompt
   text. No response text. No full credential.**
-- **Bus headers on non-streaming responses** (`enchanter/proxy/server.py:702`):
+- **Bus headers on non-streaming responses** (`robit/proxy/server.py:702`):
   `X-Enchanter-Bus-Events`, `X-Enchanter-Mask-Matched` (when secret
   mask fires), `X-Enchanter-Cost-Cents`.
 - **Veto** (`:577`): when a pattern gate vetoes, the 451 response body
   includes `phase`, `plugin`, `reason`, `pattern_id`, `pattern_name` —
   no inbound credential is included.
-- **`_passthrough_auth_kwargs` honesty note** (`enchanter/proxy/upstream.py:154`):
+- **`_passthrough_auth_kwargs` honesty note** (`robit/proxy/upstream.py:154`):
   the credential is held only on `req.metadata["_enchanter_passthrough_auth"]`,
   stripped before being forwarded to LiteLLM's `metadata` bag (`:208`),
   and never logged.
 
 Streaming responses do **not** carry bus headers, because bus
 observations fire after the iterator is exhausted and the headers are
-already on the wire (`enchanter/proxy/server.py:33`). Documented
+already on the wire (`robit/proxy/server.py:33`). Documented
 intentionally; do not expect parity.
 
 ## Honest limitations (read this)
 
 - **Anthropic OAuth via proxy passthrough** carries a TODO marker on
   LiteLLM's `extra_headers` acceptance
-  (`enchanter/proxy/upstream.py:160`). Works in tests; not verified
+  (`robit/proxy/upstream.py:160`). Works in tests; not verified
   against a real Anthropic LiteLLM round-trip across multiple LiteLLM
   versions.
 - **ChatGPT pass-through ships in Wave 17.2.** Inbound side
@@ -326,20 +326,20 @@ intentionally; do not expect parity.
   worker-thread + `asyncio.Queue` pump).
 - **Direct `ChatGptClient` works today** (Wave 16.3): it bypasses
   LiteLLM entirely and uses stdlib `urllib`
-  (`enchanter/llm/chatgpt_client.py:154`). Streaming over the
+  (`robit/llm/chatgpt_client.py:154`). Streaming over the
   ChatGPT-internal endpoint is deferred to a later wave —
   `req.stream = True` raises `NotImplementedError`
-  (`enchanter/llm/chatgpt_client.py:136`).
-- **`enchanter login anthropic` is a stub.** There is no standalone
+  (`robit/llm/chatgpt_client.py:136`).
+- **`robit login anthropic` is a stub.** There is no standalone
   PKCE flow for Claude.ai today; the command prints instructions to
   use Claude Code's `/login` and export `CLAUDE_CODE_OAUTH_TOKEN`
-  manually (`enchanter/agent/login.py:142`).
+  manually (`robit/agent/login.py:142`).
 - **Fast path skips enforcement.** Pattern vetos, secret mask, cost
   ledger do **not** run on bypassed requests. The env gate + per-key
   allowlist bound _who_ can bypass; they do not change _what_ is
-  bypassed for them (`enchanter/proxy/fastpath.py:25`).
+  bypassed for them (`robit/proxy/fastpath.py:25`).
 - **`.env` shell precedence.** `load_env_files()` does not override
-  shell-set variables by default (`enchanter/_env.py:218`). If you
+  shell-set variables by default (`robit/_env.py:218`). If you
   change a `.env` value but the same name is exported in your shell,
   the shell wins. Either `unset` the shell var or call
   `load_env_files(override=True)` (no CLI flag for this in 0.7.0).

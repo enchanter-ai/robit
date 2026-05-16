@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from enchanter.proxy import fastpath
+from robit.proxy import fastpath
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ async def test_load_config_env_set_but_no_allowlist(
 ) -> None:
     monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
     monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
-    caplog.set_level("WARNING", logger="enchanter.proxy.fastpath")
+    caplog.set_level("WARNING", logger="robit.proxy.fastpath")
     cfg = fastpath.load_config(force_reload=True)
     assert cfg.enabled is False
     assert any("does not exist" in rec.message for rec in caplog.records)
@@ -185,7 +185,7 @@ async def test_load_config_malformed_allowlist(
     monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
     monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
     (tmp_path / "fastpath-allowlist.json").write_text("not-json", encoding="utf-8")
-    caplog.set_level("WARNING", logger="enchanter.proxy.fastpath")
+    caplog.set_level("WARNING", logger="robit.proxy.fastpath")
     cfg = fastpath.load_config(force_reload=True)
     assert cfg.enabled is False
     assert any("failed to parse" in rec.message for rec in caplog.records)
@@ -246,7 +246,7 @@ async def test_record_bypass_appends_jsonl(
 async def test_integration_bypass_fires_with_x_enchanter_fastpath_header(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    from enchanter.proxy import ProxyServer
+    from robit.proxy import ProxyServer
 
     monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
     monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
@@ -265,7 +265,7 @@ async def test_integration_bypass_fires_with_x_enchanter_fastpath_header(
         b'{"id":"msg_fake","type":"message","content":[{"type":"text","text":"hi"}]}',
     )
 
-    with patch("enchanter.proxy.fastpath.passthrough", new=AsyncMock(return_value=fake_response)):
+    with patch("robit.proxy.fastpath.passthrough", new=AsyncMock(return_value=fake_response)):
         server = ProxyServer(host="127.0.0.1", port=0)
         host, port = await server.start()
         serve_task = asyncio.create_task(server.serve_forever())
@@ -302,15 +302,15 @@ async def test_integration_pipeline_path_when_env_unset(
     """When the env var is unset, the fast path block is skipped entirely;
     the request flows through the normal pipeline. Test by asserting the
     response does NOT carry X-Enchanter-FastPath."""
-    from enchanter.proxy import ProxyServer
-    from enchanter.proxy.canonical import CanonicalResponse, CanonicalUsage, TextPart
+    from robit.proxy import ProxyServer
+    from robit.proxy.canonical import CanonicalResponse, CanonicalUsage, TextPart
 
     monkeypatch.delenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", raising=False)
     fastpath.load_config(force_reload=True)
 
     # Mock LiteLLM so we hit the pipeline without network. Patch the
     # binding in pipeline.py (which imports call_upstream by name).
-    from enchanter.proxy import pipeline as pipeline_mod
+    from robit.proxy import pipeline as pipeline_mod
 
     async def fake_call(req):  # noqa: ANN001
         return CanonicalResponse(

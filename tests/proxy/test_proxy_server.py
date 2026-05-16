@@ -1,6 +1,6 @@
-"""Integration tests for enchanter.proxy.server — real TCP, mocked upstream.
+"""Integration tests for robit.proxy.server — real TCP, mocked upstream.
 
-Spins up a :class:`enchanter.proxy.server.ProxyServer` on ``127.0.0.1:0`` (OS-
+Spins up a :class:`robit.proxy.server.ProxyServer` on ``127.0.0.1:0`` (OS-
 assigned port) per test, sends real HTTP/1.1 requests via
 ``asyncio.open_connection``, and asserts on the wire-level response.  The
 underlying LiteLLM ``acompletion`` is patched so no network traffic leaves
@@ -22,11 +22,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 # Skip the entire module gracefully if Sibling D's pipeline didn't land.
-pipeline = pytest.importorskip("enchanter.proxy.pipeline")
-streaming = pytest.importorskip("enchanter.proxy.streaming")
+pipeline = pytest.importorskip("robit.proxy.pipeline")
+streaming = pytest.importorskip("robit.proxy.streaming")
 
-from enchanter.proxy import upstream  # noqa: E402
-from enchanter.proxy.server import ProxyServer  # noqa: E402
+from robit.proxy import upstream  # noqa: E402
+from robit.proxy.server import ProxyServer  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -649,7 +649,7 @@ async def test_passthrough_auth_openai_bearer_captured():
 
 def test_extract_inbound_auth_codex_detects_jwt_shape():
     """Codex /v1/responses + Bearer eyJ… → kind='chatgpt-jwt' with account_id."""
-    from enchanter.proxy.server import _extract_inbound_auth
+    from robit.proxy.server import _extract_inbound_auth
 
     headers = {
         "authorization": "Bearer eyJhbGciOi.payload-body.sig-tail",
@@ -664,7 +664,7 @@ def test_extract_inbound_auth_codex_detects_jwt_shape():
 
 def test_extract_inbound_auth_codex_jwt_missing_account_id_is_none():
     """Missing ChatGPT-Account-ID is captured as None, not synthesised."""
-    from enchanter.proxy.server import _extract_inbound_auth
+    from robit.proxy.server import _extract_inbound_auth
 
     headers = {"authorization": "Bearer eyJabc.def.ghi"}
     auth = _extract_inbound_auth(headers, "codex")
@@ -675,7 +675,7 @@ def test_extract_inbound_auth_codex_jwt_missing_account_id_is_none():
 
 def test_extract_inbound_auth_codex_non_jwt_bearer_is_openai_bearer():
     """A non-JWT Bearer (sk-…) on /v1/responses stays as openai-bearer."""
-    from enchanter.proxy.server import _extract_inbound_auth
+    from robit.proxy.server import _extract_inbound_auth
 
     headers = {"authorization": "Bearer sk-proj-abc-1234"}
     auth = _extract_inbound_auth(headers, "codex")
@@ -691,7 +691,7 @@ def test_extract_inbound_auth_openai_family_also_detects_jwt():
     Wave 17.2: some host agents may route Codex through the OpenAI adapter
     by accident — we honour the JWT shape regardless of family.
     """
-    from enchanter.proxy.server import _extract_inbound_auth
+    from robit.proxy.server import _extract_inbound_auth
 
     headers = {
         "authorization": "Bearer eyJraw.body.tail",
@@ -705,7 +705,7 @@ def test_extract_inbound_auth_openai_family_also_detects_jwt():
 
 def test_looks_like_jwt_shape_matcher():
     """The JWT regex matches the canonical three-segment compact form."""
-    from enchanter.proxy.server import _looks_like_jwt
+    from robit.proxy.server import _looks_like_jwt
 
     # Three base64url segments, eyJ prefix → match.
     assert _looks_like_jwt("eyJabc.def-_AB.gh_-iZ") is True
@@ -731,7 +731,7 @@ async def test_chatgpt_jwt_request_routes_through_chatgpt_internal_path():
     upstream.call_upstream is invoked, _call_chatgpt_internal handles it,
     LiteLLM is never called.
     """
-    from enchanter.proxy.canonical import (
+    from robit.proxy.canonical import (
         CanonicalResponse,
         CanonicalUsage,
         TextPart,

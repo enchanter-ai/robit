@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.adapters.anthropic — wire-format adapter."""
+"""Tests for robit.proxy.adapters.anthropic — wire-format adapter."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from enchanter.proxy.adapters.anthropic import AdapterParseError, AnthropicAdapter
-from enchanter.proxy.canonical import (
+from robit.proxy.adapters.anthropic import AdapterParseError, AnthropicAdapter
+from robit.proxy.canonical import (
     CanonicalChunk,
     CanonicalResponse,
     CanonicalUsage,

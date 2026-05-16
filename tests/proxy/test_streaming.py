@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.streaming — StreamAccumulator + tee_stream."""
+"""Tests for robit.proxy.streaming — StreamAccumulator + tee_stream."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from enchanter.proxy.canonical import CanonicalChunk
-from enchanter.proxy.streaming import (
+from robit.proxy.canonical import CanonicalChunk
+from robit.proxy.streaming import (
     SecretSanitizingStream,
     StreamAccumulator,
     tee_stream,

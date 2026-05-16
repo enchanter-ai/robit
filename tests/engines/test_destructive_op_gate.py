@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
@@ -17,9 +17,9 @@ from enchanter.core import (
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.destructive_op_gate import adapter as gate
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.destructive_op_gate import adapter as gate
 
 
 async def _publish_tool_call(bus: InProcessBus, ctx, tool: str, args: list[str]) -> None:

@@ -1,4 +1,4 @@
-"""Shared fixtures for enchanter.agent tests.
+"""Shared fixtures for robit.agent tests.
 
 Critical: redirect ENCHANTER_HOME to a tmp dir at module import time so
 session writes never touch the developer's real ~/.enchanter directory.

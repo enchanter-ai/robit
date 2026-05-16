@@ -86,41 +86,41 @@ back in the executive summary — do not hand-wave around it.
 
 ### Protocol / contract types (honey-spot candidates)
 
-- `enchanter/core/plugin.py` — `PluginAdapter` Protocol
-- `enchanter/core/events.py` — `EnchantedEvent`, `PluginAck`
-- `enchanter/core/lifecycle.py` — the 7 lifecycle phases
-- `enchanter/proxy/canonical.py` — `CanonicalRequest/Response/Chunk`
-- `enchanter/proxy/events/_types.py` — `EmitContext`, `EmitPhase`,
+- `robit/core/plugin.py` — `PluginAdapter` Protocol
+- `robit/core/events.py` — `EnchantedEvent`, `PluginAck`
+- `robit/core/lifecycle.py` — the 7 lifecycle phases
+- `robit/proxy/canonical.py` — `CanonicalRequest/Response/Chunk`
+- `robit/proxy/events/_types.py` — `EmitContext`, `EmitPhase`,
   `EventEmitter` (added in Wave 13.0)
-- `enchanter/loader/manifest.py` — `EngineManifest` (extended in Wave
+- `robit/loader/manifest.py` — `EngineManifest` (extended in Wave
   13.1.5 with the `runtime` field)
-- `enchanter/protocol/jsonrpc.py` — JSON-RPC types shared by MCP server
+- `robit/protocol/jsonrpc.py` — JSON-RPC types shared by MCP server
   and sidecar runtime
 
 ### Decision authorities
 
-- `enchanter/runtime/tier_router.py`
-- `enchanter/proxy/conduct.py`
-- `enchanter/proxy/pipeline.py` — `run`, `stream`, `VetoResult`,
+- `robit/runtime/tier_router.py`
+- `robit/proxy/conduct.py`
+- `robit/proxy/pipeline.py` — `run`, `stream`, `VetoResult`,
   `BusObservation`
-- `enchanter/loader/runtimes/sidecar.py` — subprocess restart budget,
+- `robit/loader/runtimes/sidecar.py` — subprocess restart budget,
   timeout policy
-- `enchanter/engines/*/adapter.py` (14 engines)
-- `enchanter/mcp_server/dispatcher.py`
+- `robit/engines/*/adapter.py` (14 engines)
+- `robit/mcp_server/dispatcher.py`
 
 ### Failure-mode and audit authorities
 
 - The 21-code failure taxonomy (referenced in agent CLAUDE.md and
   wixie's `vis/packages/core/conduct/failure-modes.md`)
-- `enchanter/inference/engine.py` and the wixie inference substrate
+- `robit/inference/engine.py` and the wixie inference substrate
 - The DEPLOY bar criteria (declared in wixie CLAUDE.md)
 
 ### External authority surfaces (crossing trust boundaries)
 
-- `enchanter/proxy/upstream.py` — LiteLLM
-- `enchanter/proxy/adapters/{anthropic,openai,gemini}.py` — three wire
+- `robit/proxy/upstream.py` — LiteLLM
+- `robit/proxy/adapters/{anthropic,openai,gemini}.py` — three wire
   formats; each owns its format
-- `enchanter/loader/runtimes/sidecar.py` — subprocess gateway
+- `robit/loader/runtimes/sidecar.py` — subprocess gateway
 
 ## Report structure
 
@@ -171,7 +171,7 @@ A meta-section. Articulate the precedence order between:
 
 - **Framework defaults** (what the code does with no config)
 - **Engine author** (what `engine.toml` and `adapter.py` declare)
-- **Operator** (what enchanter CLI flags / settings.json / env
+- **Operator** (what robit CLI flags / settings.json / env
   vars set)
 - **End user / host agent** (what the inbound request asserts —
   `?conduct=off`, `system` prompt content, etc.)
@@ -336,7 +336,7 @@ overflow under "Deferred — re-evaluate next quarter."
 - Read the codebase liberally. Don't trust this brief's descriptions
   of files — verify them. If a landmark is wrong, report it and
   continue.
-- Cite specific files and lines. `[pipeline.py:run](enchanter/proxy/pipeline.py#L42)`
+- Cite specific files and lines. `[pipeline.py:run](robit/proxy/pipeline.py#L42)`
   is the convention.
 - Keep the report opinionated. A list of findings without
   recommendations is wasted work. Each recommendation carries a cost

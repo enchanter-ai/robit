@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools.file_read.FileReadTool."""
+"""Tests for robit.agent.tools.file_read.FileReadTool."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.tools._types import ToolContext
-from enchanter.agent.tools.file_read import FileReadTool
+from robit.agent.tools._types import ToolContext
+from robit.agent.tools.file_read import FileReadTool
 
 
 # ---------------------------------------------------------------------------

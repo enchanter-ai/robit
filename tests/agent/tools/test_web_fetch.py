@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools.web_fetch.WebFetchTool.
+"""Tests for robit.agent.tools.web_fetch.WebFetchTool.
 
 Network is fully mocked. We patch:
 
@@ -24,8 +24,8 @@ from unittest.mock import patch
 
 import pytest
 
-from enchanter.agent.tools._types import ToolContext
-from enchanter.agent.tools.web_fetch import WebFetchTool
+from robit.agent.tools._types import ToolContext
+from robit.agent.tools.web_fetch import WebFetchTool
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ def test_valid_https_html_returns_extracted_text(tmp_path):
     opener = _patch_opener([resp])
 
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -300,7 +300,7 @@ def test_4xx_response_returns_error(tmp_path):
     )
     opener = _patch_opener([resp])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -321,7 +321,7 @@ def test_5xx_response_returns_error(tmp_path):
     )
     opener = _patch_opener([resp])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -347,7 +347,7 @@ def test_content_length_exceeds_max_bytes(tmp_path):
     )
     opener = _patch_opener([resp])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -371,7 +371,7 @@ def test_streaming_truncation_without_content_length(tmp_path):
     )
     opener = _patch_opener([resp])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -407,7 +407,7 @@ def test_html_extracts_title_paragraphs_strips_script(tmp_path):
     )
     opener = _patch_opener([resp])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -429,7 +429,7 @@ def test_text_plain_returned_as_is(tmp_path):
     )
     opener = _patch_opener([resp])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -453,7 +453,7 @@ def test_https_to_http_redirect_rejected(tmp_path):
     )
     opener = _patch_opener([r1])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -476,7 +476,7 @@ def test_redirect_chain_exceeding_limit_rejected(tmp_path):
     ]
     opener = _patch_opener(responses)
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -495,7 +495,7 @@ def test_redirect_loop_detected(tmp_path):
     )
     opener = _patch_opener([r1])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(
@@ -525,7 +525,7 @@ def test_redirect_ssrf_checked_on_each_hop(tmp_path):
         return resolutions[host]
 
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", side_effect=resolve):
         result = _run(
@@ -552,7 +552,7 @@ def test_successful_redirect_followed(tmp_path):
     )
     opener = _patch_opener([r1, r2])
     with patch(
-        "enchanter.agent.tools.web_fetch._make_no_redirect_opener",
+        "robit.agent.tools.web_fetch._make_no_redirect_opener",
         return_value=opener,
     ), patch("socket.gethostbyname", return_value="93.184.216.34"):
         result = _run(

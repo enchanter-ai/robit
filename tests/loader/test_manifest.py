@@ -1,4 +1,4 @@
-"""Tests for enchanter.loader.manifest — schema parsing and strict validation."""
+"""Tests for robit.loader.manifest — schema parsing and strict validation."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.loader.manifest import EngineManifest, EngineTopics, parse_manifest
-from enchanter.loader.errors import ManifestSchemaError
+from robit.loader.manifest import EngineManifest, EngineTopics, parse_manifest
+from robit.loader.errors import ManifestSchemaError
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -141,9 +141,9 @@ def test_unknown_topics_subfield_rejected(tmp_path: Path) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_find_engine_manifests_count(tmp_path: Path) -> None:
-    from enchanter.loader.discovery import find_engine_manifests
+    from robit.loader.discovery import find_engine_manifests
 
-    engines_dir = tmp_path / "enchanter" / "engines"
+    engines_dir = tmp_path / "robit" / "engines"
     for name in ("engine_a", "engine_b", "engine_c"):
         d = engines_dir / name
         d.mkdir(parents=True)
@@ -179,9 +179,9 @@ def test_find_engine_manifests_count(tmp_path: Path) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_topological_order_respects_depends_on(tmp_path: Path) -> None:
-    from enchanter.loader.discovery import find_engine_manifests, load_engine_registry
+    from robit.loader.discovery import find_engine_manifests, load_engine_registry
 
-    engines_dir = tmp_path / "enchanter" / "engines"
+    engines_dir = tmp_path / "robit" / "engines"
 
     def _make_engine(name: str, depends_on: list[str] | None = None) -> None:
         d = engines_dir / name
@@ -197,7 +197,7 @@ def test_topological_order_respects_depends_on(tmp_path: Path) -> None:
                 phases = ["trust-gate"]
                 required = false
                 budget_tier = "always"
-                adapter = "enchanter.engines.destructive_op_gate.adapter:adapter"
+                adapter = "robit.engines.destructive_op_gate.adapter:adapter"
                 {dep_line}
                 [topics]
                 subscribes = ["x"]
@@ -222,10 +222,10 @@ def test_topological_order_respects_depends_on(tmp_path: Path) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_dependency_cycle_raises(tmp_path: Path) -> None:
-    from enchanter.loader.discovery import load_engine_registry
-    from enchanter.loader.errors import DependencyCycleError
+    from robit.loader.discovery import load_engine_registry
+    from robit.loader.errors import DependencyCycleError
 
-    engines_dir = tmp_path / "enchanter" / "engines"
+    engines_dir = tmp_path / "robit" / "engines"
 
     def _make_engine(name: str, depends_on: list[str]) -> None:
         d = engines_dir / name
@@ -238,7 +238,7 @@ def test_dependency_cycle_raises(tmp_path: Path) -> None:
                 phases = ["trust-gate"]
                 required = false
                 budget_tier = "always"
-                adapter = "enchanter.engines.destructive_op_gate.adapter:adapter"
+                adapter = "robit.engines.destructive_op_gate.adapter:adapter"
                 depends_on = {depends_on!r}
 
                 [topics]

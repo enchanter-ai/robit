@@ -1,15 +1,15 @@
-"""Tests for enchanter.agent.subagents.roles + registry."""
+"""Tests for robit.agent.subagents.roles + registry."""
 
 from __future__ import annotations
 
 import pytest
 
-from enchanter.agent.subagents.registry import (
+from robit.agent.subagents.registry import (
     SubagentRegistry,
     SubagentRole,
     default_registry,
 )
-from enchanter.agent.subagents.roles import (
+from robit.agent.subagents.roles import (
     DEEP_RESEARCH,
     FIND_REFERENCES,
     REVIEW_DIFF,

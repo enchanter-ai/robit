@@ -1,4 +1,4 @@
-"""Tests for enchanter.loader.runtimes._audit — sidecar rejection audit log."""
+"""Tests for robit.loader.runtimes._audit — sidecar rejection audit log."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from unittest import mock
 
 import pytest
 
-from enchanter.loader.runtimes import _audit
+from robit.loader.runtimes import _audit
 
 
 @pytest.fixture(autouse=True)
@@ -170,7 +170,7 @@ async def test_disk_full_does_not_raise_and_warns_once(tmp_path, monkeypatch, ca
     # Patch the sync writer so the asyncio.to_thread call raises.
     monkeypatch.setattr(_audit, "_write_line_sync", _boom)
 
-    with caplog.at_level("WARNING", logger="enchanter.loader.runtimes._audit"):
+    with caplog.at_level("WARNING", logger="robit.loader.runtimes._audit"):
         # Two calls -- both must complete cleanly.
         await _audit.record_rejection("x", "source-forgery", {"e": 1})
         await _audit.record_rejection("x", "source-forgery", {"e": 2})
@@ -248,7 +248,7 @@ async def test_concurrent_calls_all_land(tmp_path):
 @pytest.mark.asyncio
 async def test_fsync_env_var_triggers_fsync(tmp_path, monkeypatch):
     monkeypatch.setenv("ENCHANTER_AUDIT_FSYNC", "1")
-    with mock.patch("enchanter.loader.runtimes._audit.os.fsync") as m_fsync:
+    with mock.patch("robit.loader.runtimes._audit.os.fsync") as m_fsync:
         await _audit.record_rejection("a", "source-forgery", {"x": 1})
     assert m_fsync.called, "fsync should have been invoked when env var is set"
 
@@ -256,6 +256,6 @@ async def test_fsync_env_var_triggers_fsync(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_fsync_default_off(tmp_path, monkeypatch):
     monkeypatch.delenv("ENCHANTER_AUDIT_FSYNC", raising=False)
-    with mock.patch("enchanter.loader.runtimes._audit.os.fsync") as m_fsync:
+    with mock.patch("robit.loader.runtimes._audit.os.fsync") as m_fsync:
         await _audit.record_rejection("a", "source-forgery", {"x": 1})
     assert not m_fsync.called, "fsync must NOT be invoked by default"

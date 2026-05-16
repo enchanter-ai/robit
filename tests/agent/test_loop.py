@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.loop — turn driver, events, veto, iteration cap."""
+"""Tests for robit.agent.loop — turn driver, events, veto, iteration cap."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.loop import (
+from robit.agent.conversation import Conversation
+from robit.agent.loop import (
     AgentLoop,
     AssistantTextDelta,
     AssistantThinking,
@@ -17,14 +17,14 @@ from enchanter.agent.loop import (
     TurnComplete,
     VetoFired,
 )
-from enchanter.agent.tools import EchoTool, ToolRegistry
-from enchanter.proxy.canonical import (
+from robit.agent.tools import EchoTool, ToolRegistry
+from robit.proxy.canonical import (
     CanonicalResponse,
     CanonicalUsage,
     TextPart,
     ToolUsePart,
 )
-from enchanter.proxy.pipeline import PipelineResult, VetoResult
+from robit.proxy.pipeline import PipelineResult, VetoResult
 
 
 def _make_loop(dispatch_fn, cwd=None) -> AgentLoop:
@@ -166,7 +166,7 @@ async def test_tool_output_cap_truncates():
         requires_approval = False
 
         async def execute(self, args, ctx):
-            from enchanter.agent.tools import ToolResult
+            from robit.agent.tools import ToolResult
             return ToolResult(content="A" * (ctx.max_output_bytes + 100))
 
     calls = {"n": 0}

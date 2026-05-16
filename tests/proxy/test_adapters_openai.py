@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.adapters.openai — wire-format translation."""
+"""Tests for robit.proxy.adapters.openai — wire-format translation."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import re
 
 import pytest
 
-from enchanter.proxy.adapters.openai import AdapterParseError, OpenAIAdapter
-from enchanter.proxy.canonical import (
+from robit.proxy.adapters.openai import AdapterParseError, OpenAIAdapter
+from robit.proxy.canonical import (
     CanonicalChunk,
     CanonicalResponse,
     CanonicalUsage,

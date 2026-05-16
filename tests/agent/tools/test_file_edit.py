@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools.file_edit.FileEditTool."""
+"""Tests for robit.agent.tools.file_edit.FileEditTool."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import asyncio
 import builtins
 from pathlib import Path
 
-from enchanter.agent.tools._types import ToolContext
-from enchanter.agent.tools.file_edit import FileEditTool
+from robit.agent.tools._types import ToolContext
+from robit.agent.tools.file_edit import FileEditTool
 
 
 # ---------------------------------------------------------------------------

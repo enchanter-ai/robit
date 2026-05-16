@@ -1,10 +1,10 @@
-"""Tests for enchanter.proxy.canonical — dataclass invariants and shape."""
+"""Tests for robit.proxy.canonical — dataclass invariants and shape."""
 
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
-from enchanter.proxy.canonical import (
+from robit.proxy.canonical import (
     CanonicalChunk,
     CanonicalRequest,
     CanonicalResponse,

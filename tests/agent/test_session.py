@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.session — JSONL persistence + corruption tolerance."""
+"""Tests for robit.agent.session — JSONL persistence + corruption tolerance."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ import json
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.session import (
+from robit.agent.conversation import Conversation
+from robit.agent.session import (
     SessionWriter,
     load_session,
     session_dir,
     session_path,
 )
-from enchanter.proxy.canonical import TextPart, ToolUsePart
+from robit.proxy.canonical import TextPart, ToolUsePart
 
 
 def test_session_dir_honors_enchanter_home(tmp_path, monkeypatch):

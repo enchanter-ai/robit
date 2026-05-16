@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.pipeline — orchestrator wrapper + bus integration.
+"""Tests for robit.proxy.pipeline — orchestrator wrapper + bus integration.
 
 Mocks `litellm.acompletion` so no provider traffic occurs.  Uses the real
 engine registry so destructive-op-gate / secret-mask actually fire on the
@@ -13,13 +13,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from enchanter.proxy import upstream
-from enchanter.proxy.canonical import (
+from robit.proxy import upstream
+from robit.proxy.canonical import (
     CanonicalRequest,
     Message,
     TextPart,
 )
-from enchanter.proxy.pipeline import (
+from robit.proxy.pipeline import (
     BusObservation,
     PipelineOptions,
     PipelineResult,
@@ -240,7 +240,7 @@ async def test_stream_truncation_when_text_exceeds_cap():
     To exercise the cap without producing 8 MiB of test data, we patch the
     StreamAccumulator default cap via a monkey-patched constant.
     """
-    from enchanter.proxy import streaming as streaming_mod
+    from robit.proxy import streaming as streaming_mod
 
     big = "X" * 1024  # 1 KiB
     chunks = [_make_chunk(content=big) for _ in range(10)]  # 10 KiB total
@@ -291,7 +291,7 @@ async def test_stream_secret_in_output_fires_post_response_mask_event():
     we cannot reach the bus from outside the pipeline, we instead patch the
     pipeline's `_BusRecorder.record` to capture observations.
     """
-    from enchanter.proxy import pipeline as pipeline_mod
+    from robit.proxy import pipeline as pipeline_mod
 
     secret = "AKIAIOSFODNN7EXAMPLE"
 
@@ -351,7 +351,7 @@ async def test_run_returns_observations_as_immutable_tuple():
 def test_load_emitters_includes_builtin_in_deterministic_order():
     """load_emitters() always lists ``builtin`` first (alphabetical) and the
     return value is a list (order matters, not just membership)."""
-    from enchanter.proxy.events import load_emitters
+    from robit.proxy.events import load_emitters
 
     emitters = load_emitters()
     names = [em.name for em in emitters]
@@ -369,7 +369,7 @@ async def test_pipeline_run_publishes_same_4_topics_as_pre_refactor():
     pipeline.run still publishes exactly the four topics the pre-refactor
     pipeline did, with the same source and phases.
     """
-    from enchanter.proxy import pipeline as pipeline_mod
+    from robit.proxy import pipeline as pipeline_mod
 
     fake = _make_completion(text="hello world")
     seen_topics: list[tuple[str, str]] = []
@@ -405,8 +405,8 @@ async def test_custom_post_session_emitter_sees_accumulated_text_and_redactions(
     """A test-only emitter registered for POST_SESSION receives the
     fully-populated EmitContext: accumulated_text on unary requests, and
     redactions on streaming requests."""
-    from enchanter.proxy import events as events_mod
-    from enchanter.proxy.events import EmitContext, EmitPhase
+    from robit.proxy import events as events_mod
+    from robit.proxy.events import EmitContext, EmitPhase
 
     captured: list[EmitContext] = []
 
@@ -427,7 +427,7 @@ async def test_custom_post_session_emitter_sees_accumulated_text_and_redactions(
     with patch.object(events_mod, "load_emitters", patched_load):
         # The pipeline imports load_emitters by name into its own module
         # scope; patch there too.
-        from enchanter.proxy import pipeline as pipeline_mod
+        from robit.proxy import pipeline as pipeline_mod
         with patch.object(pipeline_mod, "load_emitters", patched_load):
             with patch.object(upstream.litellm, "acompletion", new=AsyncMock(return_value=fake)):
                 result = await run(_req("hi"), PipelineOptions(conduct=False))
@@ -447,8 +447,8 @@ async def test_custom_post_session_emitter_sees_accumulated_text_and_redactions(
 async def test_pre_dispatch_emitter_that_raises_does_not_crash_pipeline():
     """Fire-and-forget contract: a buggy emitter is logged + swallowed and
     the pipeline still completes."""
-    from enchanter.proxy import events as events_mod
-    from enchanter.proxy.events import EmitContext, EmitPhase
+    from robit.proxy import events as events_mod
+    from robit.proxy.events import EmitContext, EmitPhase
 
     class _Bomb:
         name = "zzz-bomb"  # after 'builtin' so it fires AFTER the trust-gate publish
@@ -465,7 +465,7 @@ async def test_pre_dispatch_emitter_that_raises_does_not_crash_pipeline():
 
     fake = _make_completion(text="ok")
     with patch.object(events_mod, "load_emitters", patched_load):
-        from enchanter.proxy import pipeline as pipeline_mod
+        from robit.proxy import pipeline as pipeline_mod
         with patch.object(pipeline_mod, "load_emitters", patched_load):
             with patch.object(upstream.litellm, "acompletion", new=AsyncMock(return_value=fake)):
                 result = await run(_req("hi"), PipelineOptions(conduct=False))

@@ -1,1 +1,1 @@
-# tests/llm — unit tests for enchanter.llm
+# tests/llm — unit tests for robit.llm

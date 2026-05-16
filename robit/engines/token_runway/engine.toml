@@ -1,0 +1,11 @@
+name = "token-runway"
+description = "Advisory token economy monitoring. A1 Markov Drift Detection at post-response; A2 Linear Runway Forecast at pre-dispatch. Fail-open."
+version = "1.0.0"
+phases = ["post-response", "pre-dispatch"]
+required = false
+budget_tier = "med-or-higher"
+adapter = "robit.engines.token_runway.adapter:adapter"
+
+[topics]
+subscribes = ["mcp.tool.call.requested", "mcp.tool.result.received"]
+emits = ["token-runway.runway.forecast", "token-runway.compression.applied", "token-runway.drift.pattern"]

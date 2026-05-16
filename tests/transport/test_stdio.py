@@ -30,8 +30,8 @@ import textwrap
 import pytest
 import pytest_asyncio  # type: ignore[import]  # noqa: F401  (may not be installed; see note)
 
-from enchanter.transport.descriptor import TransportDescriptor
-from enchanter.transport.stdio import (
+from robit.transport.descriptor import TransportDescriptor
+from robit.transport.stdio import (
     BodyTooLargeError,
     PER_MESSAGE_BODY_MAX_BYTES,
     StdioTransport,

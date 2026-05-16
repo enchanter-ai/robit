@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools.glob.GlobTool."""
+"""Tests for robit.agent.tools.glob.GlobTool."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.tools._types import ToolContext
-from enchanter.agent.tools.glob import GlobTool, _SKIP_DIRS, _SKIP_PATTERNS
+from robit.agent.tools._types import ToolContext
+from robit.agent.tools.glob import GlobTool, _SKIP_DIRS, _SKIP_PATTERNS
 
 
 # ---------------------------------------------------------------------------

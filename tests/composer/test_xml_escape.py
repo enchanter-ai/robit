@@ -1,7 +1,7 @@
-"""Tests for enchanter.composer.xml — escape utilities."""
+"""Tests for robit.composer.xml — escape utilities."""
 
 import pytest
-from enchanter.composer.xml import xml_escape, indent_block
+from robit.composer.xml import xml_escape, indent_block
 
 
 # ---------------------------------------------------------------------------

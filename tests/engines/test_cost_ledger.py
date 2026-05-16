@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     PluginAck,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.cost_ledger import CostLedger, CostLedgerStore
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.cost_ledger import CostLedger, CostLedgerStore
 
 
 # ---------------------------------------------------------------------------

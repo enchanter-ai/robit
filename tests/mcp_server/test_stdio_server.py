@@ -12,8 +12,8 @@ import json
 
 import pytest
 
-from enchanter.mcp_server.server import MCPServer
-from enchanter.mcp_server.stdio import ServerStdioTransport
+from robit.mcp_server.server import MCPServer
+from robit.mcp_server.stdio import ServerStdioTransport
 
 
 class _MemoryReader:
@@ -118,13 +118,13 @@ async def test_stdio_initialize_list_call_round_trip() -> None:
         }))
         listing = await _next_response(writer)
         names = {t["name"] for t in listing["result"]["tools"]}
-        assert "enchanter.scan_secrets" in names
+        assert "robit.scan_secrets" in names
 
         # 4) tools/call → scan_secrets
         reader.write_line(json.dumps({
             "jsonrpc": "2.0", "id": 3, "method": "tools/call",
             "params": {
-                "name": "enchanter.scan_secrets",
+                "name": "robit.scan_secrets",
                 "arguments": {"text": "no secrets here"},
             },
         }))
@@ -136,7 +136,7 @@ async def test_stdio_initialize_list_call_round_trip() -> None:
         reader.write_line(json.dumps({
             "jsonrpc": "2.0", "id": 4, "method": "tools/call",
             "params": {
-                "name": "enchanter.check_destructive_op",
+                "name": "robit.check_destructive_op",
                 "arguments": {"tool": "rm", "args": ["-rf", "/"]},
             },
         }))

@@ -11,21 +11,21 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from enchanter.composer.conduct import compose_conduct_xml, select_rules
-from enchanter.conduct import load_conduct
-from enchanter.core import (
+from robit.composer.conduct import compose_conduct_xml, select_rules
+from robit.conduct import load_conduct
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.llm.mock_client import MockLlmClient
-from enchanter.llm.types import CompletionRequest, CompletionResponse, Message
-from enchanter.loader import load_engine_registry
-from enchanter.runtime.models_registry import ModelsRegistry
-from enchanter.runtime.tier_router import TierRouter
+from robit.core.bus import build_event
+from robit.llm.mock_client import MockLlmClient
+from robit.llm.types import CompletionRequest, CompletionResponse, Message
+from robit.loader import load_engine_registry
+from robit.runtime.models_registry import ModelsRegistry
+from robit.runtime.tier_router import TierRouter
 
 _SMOKE_RULES: set[str] = {
     "discipline", "verification", "tool-use",

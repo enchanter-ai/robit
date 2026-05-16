@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.slash — built-ins + dispatch."""
+"""Tests for robit.agent.slash — built-ins + dispatch."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.slash import (
+from robit.agent.conversation import Conversation
+from robit.agent.slash import (
     SlashContext,
     SlashExit,
     builtin_registry,
     dispatch_slash,
 )
-from enchanter.agent.tools import EchoTool, ToolRegistry
+from robit.agent.tools import EchoTool, ToolRegistry
 
 
 def _ctx(tmp_path: Path | None = None) -> SlashContext:

@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.events.rate_limiter — Wave 13.1 / Agent A.
+"""Tests for robit.proxy.events.rate_limiter — Wave 13.1 / Agent A.
 
 Verifies:
   * Emitter shape (name, phases) matches the contract advertised in the
@@ -22,13 +22,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from enchanter.core import EnchantedEvent, InProcessBus, PluginAck
-from enchanter.core.plugin import PluginTopics
-from enchanter.proxy import upstream
-from enchanter.proxy.canonical import CanonicalRequest, Message, TextPart
-from enchanter.proxy.events import EmitContext, EmitPhase, load_emitters
-from enchanter.proxy.events.rate_limiter import RateLimiterEmitter, emitter
-from enchanter.proxy.pipeline import PipelineOptions, VetoResult, run
+from robit.core import EnchantedEvent, InProcessBus, PluginAck
+from robit.core.plugin import PluginTopics
+from robit.proxy import upstream
+from robit.proxy.canonical import CanonicalRequest, Message, TextPart
+from robit.proxy.events import EmitContext, EmitPhase, load_emitters
+from robit.proxy.events.rate_limiter import RateLimiterEmitter, emitter
+from robit.proxy.pipeline import PipelineOptions, VetoResult, run
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +214,7 @@ async def test_pipeline_integration_veto_propagates_through_emitter_wiring():
     rate-limiter so this test does not pollute the engine's per-process
     token-bucket state.
     """
-    from enchanter.proxy import pipeline as pipeline_mod
+    from robit.proxy import pipeline as pipeline_mod
 
     fake_plugin = _VetoingRateLimiterStub()
     fake_registry = {fake_plugin.name: fake_plugin}

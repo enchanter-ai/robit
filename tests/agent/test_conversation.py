@@ -1,12 +1,12 @@
-"""Tests for enchanter.agent.conversation — immutability + session_id round-trip."""
+"""Tests for robit.agent.conversation — immutability + session_id round-trip."""
 
 from __future__ import annotations
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.session import SessionWriter, load_session
-from enchanter.proxy.canonical import TextPart, ToolUsePart
+from robit.agent.conversation import Conversation
+from robit.agent.session import SessionWriter, load_session
+from robit.proxy.canonical import TextPart, ToolUsePart
 
 
 def test_append_user_returns_new_instance():

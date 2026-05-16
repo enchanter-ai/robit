@@ -1,4 +1,4 @@
-"""Tests for enchanter.llm._chatgpt_auth — mocked; no network, no browser."""
+"""Tests for robit.llm._chatgpt_auth — mocked; no network, no browser."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from enchanter.llm._chatgpt_auth import (
+from robit.llm._chatgpt_auth import (
     AuthError,
     ChatGptToken,
     _extract_account_id,
@@ -151,7 +151,7 @@ def test_refresh_if_needed_exchanges_refresh_token_near_expiry() -> None:
             "expires_in": 3600,
         }
 
-    with patch("enchanter.llm._chatgpt_auth._post_token", side_effect=fake_post):
+    with patch("robit.llm._chatgpt_auth._post_token", side_effect=fake_post):
         out = asyncio.run(refresh_if_needed(token))
 
     assert captured["payload"]["grant_type"] == "refresh_token"

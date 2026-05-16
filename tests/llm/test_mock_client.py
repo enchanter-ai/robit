@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.llm import CompletionRequest, CompletionResponse, Message, MockLlmClient
+from robit.llm import CompletionRequest, CompletionResponse, Message, MockLlmClient
 
 
 # ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.mcp_server.errors import InvalidParamsError
-from enchanter.mcp_server.tools import (
+from robit.mcp_server.errors import InvalidParamsError
+from robit.mcp_server.tools import (
     check_destructive_op_handler,
     scan_secrets_handler,
 )

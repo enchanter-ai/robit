@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.tools.grep.GrepTool."""
+"""Tests for robit.agent.tools.grep.GrepTool."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.tools._types import ToolContext
-from enchanter.agent.tools.grep import GrepTool
+from robit.agent.tools._types import ToolContext
+from robit.agent.tools.grep import GrepTool
 
 
 def _ctx(cwd: Path) -> ToolContext:

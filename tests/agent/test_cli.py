@@ -1,19 +1,19 @@
-"""Tests for enchanter.agent.cli — version flag + one-shot mode w/ mock LLM."""
+"""Tests for robit.agent.cli — version flag + one-shot mode w/ mock LLM."""
 
 from __future__ import annotations
 
 import pytest
 
-from enchanter.agent.cli import main
+from robit.agent.cli import main
 
 
 def test_version_exits_0(capsys):
     rc = main(["--version"])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "enchanter" in out
-    # Version string from enchanter package.
-    from enchanter import __version__
+    assert "robit" in out
+    # Version string from robit package.
+    from robit import __version__
     assert __version__ in out
 
 

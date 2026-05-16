@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.runtime.models_registry import ModelsRegistry, UnknownModelError
-from enchanter.runtime.tier_router import (
+from robit.runtime.models_registry import ModelsRegistry, UnknownModelError
+from robit.runtime.tier_router import (
     MissingDefaultFamilyError,
     TierRouter,
     UnknownTaskClassError,

@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
@@ -29,9 +29,9 @@ from enchanter.core import (
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.loader import load_engine_registry
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.loader import load_engine_registry
 
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ def test_all_engines_have_required_attributes():
 
 def test_all_engine_phases_are_valid_lifecycle_phases(registry):
     """No engine claims a phase that isn't in LIFECYCLE_PHASES."""
-    from enchanter.core import LIFECYCLE_PHASES
+    from robit.core import LIFECYCLE_PHASES
 
     valid = set(LIFECYCLE_PHASES)
     for name, adapter in registry.items():
@@ -336,8 +336,8 @@ async def test_no_dead_subscriptions(registry):
 def test_conduct_loader_composer_produces_valid_xml():
     """Load real conduct modules from vis and produce
     well-formed system-prompt XML."""
-    from enchanter.conduct import load_conduct
-    from enchanter.composer import compose_conduct_xml
+    from robit.conduct import load_conduct
+    from robit.composer import compose_conduct_xml
 
     rules = load_conduct()
     assert len(rules) >= 10, f"Expected at least 10 real conduct modules, got {len(rules)}"
@@ -378,7 +378,7 @@ def test_inference_substrate_status_runs_clean(tmp_path):
     """Substrate status call works without crashing on a fresh state dir."""
     os.environ["ENCHANTER_INFERENCE_STATE"] = str(tmp_path / "infer")
     try:
-        from enchanter.inference import status
+        from robit.inference import status
 
         result = status()
         assert isinstance(result, dict)
@@ -392,8 +392,8 @@ def test_inference_substrate_status_runs_clean(tmp_path):
 
 def test_tier_router_routes_all_standard_classes():
     """Every documented task class resolves to a model_id."""
-    from enchanter.runtime import ModelsRegistry
-    from enchanter.runtime.tier_router import TierRouter
+    from robit.runtime import ModelsRegistry
+    from robit.runtime.tier_router import TierRouter
 
     registry = ModelsRegistry.load()
     router = TierRouter(registry)
@@ -411,11 +411,11 @@ def test_tier_router_routes_all_standard_classes():
 async def test_deep_research_engine_runs_against_mock_llm(tmp_path):
     """The composite deep-research engine runs its 6-phase pipeline end-to-end
     against MockLlmClient — no network, no API key."""
-    from enchanter.llm import MockLlmClient
-    from enchanter.llm.types import CompletionResponse
-    from enchanter.runtime import ModelsRegistry
-    from enchanter.runtime.tier_router import TierRouter
-    from enchanter.engines.deep_research.pipeline import run_pipeline
+    from robit.llm import MockLlmClient
+    from robit.llm.types import CompletionResponse
+    from robit.runtime import ModelsRegistry
+    from robit.runtime.tier_router import TierRouter
+    from robit.engines.deep_research.pipeline import run_pipeline
 
     # Script LLM responses for each phase via substring matching.
     mock = MockLlmClient(

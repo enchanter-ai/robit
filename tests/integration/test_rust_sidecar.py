@@ -21,9 +21,9 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.core.context import RequestContext
-from enchanter.core.events import EnchantedEvent
-from enchanter.loader.runtimes.sidecar import SidecarAdapter
+from robit.core.context import RequestContext
+from robit.core.events import EnchantedEvent
+from robit.loader.runtimes.sidecar import SidecarAdapter
 
 # ──────────────────────────────────────────────────────────────────────────
 # Binary discovery

@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.core import EnchantedEvent, PluginAck, create_request_context
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.inference_substrate import InferenceSubstrateEngine
+from robit.core import EnchantedEvent, PluginAck, create_request_context
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.inference_substrate import InferenceSubstrateEngine
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ async def test_cross_session_reconcile_and_render(tmp_path: Path, monkeypatch: p
     monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
 
     # Pre-populate the artifact log so reconcile has something to work with.
-    from enchanter.inference.engine import emit_unconditional
+    from robit.inference.engine import emit_unconditional
 
     emit_unconditional(
         {

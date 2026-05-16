@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.events.tool_poisoning_scan — Wave 13.1 / Agent D.
+"""Tests for robit.proxy.events.tool_poisoning_scan — Wave 13.1 / Agent D.
 
 Verifies:
   * Emitter shape (name, phases) matches the contract advertised in the
@@ -24,20 +24,20 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from enchanter.core import EnchantedEvent, InProcessBus
-from enchanter.proxy import upstream
-from enchanter.proxy.canonical import (
+from robit.core import EnchantedEvent, InProcessBus
+from robit.proxy import upstream
+from robit.proxy.canonical import (
     CanonicalRequest,
     Message,
     TextPart,
     Tool,
 )
-from enchanter.proxy.events import EmitContext, EmitPhase, load_emitters
-from enchanter.proxy.events.tool_poisoning_scan import (
+from robit.proxy.events import EmitContext, EmitPhase, load_emitters
+from robit.proxy.events.tool_poisoning_scan import (
     ToolPoisoningScanEmitter,
     emitter,
 )
-from enchanter.proxy.pipeline import PipelineOptions, VetoResult, run
+from robit.proxy.pipeline import PipelineOptions, VetoResult, run
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +235,7 @@ async def test_emit_at_pre_dispatch_with_one_tool_publishes_one_event():
     assert ev.budget_tier == "always"
     # The event MUST carry phase="post-response" so the engine's handler
     # (phases=("post-response",)) does not short-circuit on the phase
-    # gate in enchanter.core.lifecycle._wire_plugin.
+    # gate in robit.core.lifecycle._wire_plugin.
     assert ev.phase == "post-response", (
         f"event phase must match engine's declared phase; got {ev.phase!r}"
     )
@@ -348,7 +348,7 @@ async def test_pipeline_integration_poisoned_tool_vetoes_via_real_engine():
 
 async def test_pipeline_integration_benign_tool_does_not_veto():
     """Control: a request with only benign tools must complete normally."""
-    from enchanter.proxy.pipeline import PipelineResult
+    from robit.proxy.pipeline import PipelineResult
 
     mock_acomp = AsyncMock(return_value=_make_completion(text="ok"))
     with patch.object(upstream.litellm, "acompletion", new=mock_acomp):

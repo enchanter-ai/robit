@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core.bus import build_event
-from enchanter.engines.boundary_segmenter import (
+from robit.core.bus import build_event
+from robit.engines.boundary_segmenter import (
     CLUSTER_IDLE_MS,
     CLUSTER_WINDOW_MS,
     JACCARD_THRESHOLD,
@@ -163,7 +163,7 @@ async def test_end_to_end_filesystem_write_to_boundary_events() -> None:
     )
     write_event_2 = dataclasses.replace(write_event_2, ts=t0 + 5_000)
 
-    from enchanter.core.context import create_request_context
+    from robit.core.context import create_request_context
     ctx = create_request_context(
         session_id="sess-001",
         budget_tier="HIGH",

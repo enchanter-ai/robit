@@ -1,24 +1,24 @@
-"""Tests for enchanter.agent.plan — data structures + Planner."""
+"""Tests for robit.agent.plan — data structures + Planner."""
 
 from __future__ import annotations
 
 import pytest
 
-from enchanter.agent.conversation import Conversation
-from enchanter.agent.plan import (
+from robit.agent.conversation import Conversation
+from robit.agent.plan import (
     Plan,
     PlanParseError,
     PlanStep,
     Planner,
     _parse_plan_text,
 )
-from enchanter.agent.tools import ToolRegistry
-from enchanter.proxy.canonical import (
+from robit.agent.tools import ToolRegistry
+from robit.proxy.canonical import (
     CanonicalResponse,
     CanonicalUsage,
     TextPart,
 )
-from enchanter.proxy.pipeline import PipelineResult, VetoResult
+from robit.proxy.pipeline import PipelineResult, VetoResult
 
 
 def _make_plan(steps=()) -> Plan:
@@ -226,7 +226,7 @@ async def test_planner_does_not_send_tools_to_llm():
 
     reg = ToolRegistry()
     # Even with tools registered, the request to the LLM has tools=().
-    from enchanter.agent.tools import EchoTool
+    from robit.agent.tools import EchoTool
 
     reg.register(EchoTool())
     planner = Planner(tool_registry=reg, dispatch_fn=dispatch)

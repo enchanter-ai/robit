@@ -14,16 +14,16 @@ from __future__ import annotations
 import math
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.structural_fingerprint import (
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.structural_fingerprint import (
     StructuralFingerprint,
     StructuralFingerprintStore,
     tokenize,

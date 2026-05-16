@@ -1,0 +1,11 @@
+name = "destructive-op-gate"
+description = "Required at trust-gate. Fail-closed veto on W5 patterns. Scans two corpus views of the event payload — JSON-stringified and reconstructed command line."
+version = "1.0.0"
+phases = ["trust-gate"]
+required = true
+budget_tier = "always"
+adapter = "robit.engines.destructive_op_gate.adapter:adapter"
+
+[topics]
+subscribes = ["mcp.tool.call.requested", "lifecycle.trust-gate"]
+emits = ["destructive-op-gate.veto"]

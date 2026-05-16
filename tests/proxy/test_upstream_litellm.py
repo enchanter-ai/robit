@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.upstream — LiteLLM bridge with mocked acompletion."""
+"""Tests for robit.proxy.upstream — LiteLLM bridge with mocked acompletion."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from enchanter.proxy import upstream
-from enchanter.proxy.canonical import (
+from robit.proxy import upstream
+from robit.proxy.canonical import (
     CanonicalRequest,
     Message,
     TextPart,
@@ -19,7 +19,7 @@ from enchanter.proxy.canonical import (
     ToolResultPart,
     ToolUsePart,
 )
-from enchanter.proxy.upstream import UpstreamError, call_upstream, stream_upstream
+from robit.proxy.upstream import UpstreamError, call_upstream, stream_upstream
 
 
 # ---------------------------------------------------------------------------

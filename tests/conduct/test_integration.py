@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.conduct import ConductRule, load_conduct
-from enchanter.conduct._paths import DEFAULT_VIS_ROOT
+from robit.conduct import ConductRule, load_conduct
+from robit.conduct._paths import DEFAULT_VIS_ROOT
 
 # ---------------------------------------------------------------------------
 # Known good packages in vis at the time of writing.

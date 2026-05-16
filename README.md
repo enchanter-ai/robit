@@ -46,12 +46,12 @@ Inference substrate (WIRE-IN)   inference-engine.py + catalog.json + briefings
 | 8 | `ChatGptClient` for ChatGPT subscription (Plus/Team/Enterprise) auth | ✅ |
 | 8 | Codex CLI adapter — `/v1/responses` (Responses API, not chat completions) | ✅ |
 | 9 | `.env` auto-loading (cwd + `~/.enchanter/.env`); shell env wins | ✅ |
-| 9 | `enchanter login chatgpt` / `enchanter logout` / `enchanter login --list` | ✅ |
+| 9 | `robit login chatgpt` / `robit logout` / `robit login --list` | ✅ |
 | 9 | ChatGPT-login through proxy (`--passthrough-auth` handles ChatGPT JWTs end-to-end via direct stdlib HTTP) | ✅ |
 | 9 | Authentication docs at [`docs/auth.md`](docs/auth.md) | ✅ |
 
 **0.7.0** — Two binaries:
-- `enchanter` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips). Supports Anthropic Pro/Max OAuth, OpenAI API key, and ChatGPT subscription. Run `enchanter login chatgpt` to authenticate via your ChatGPT Plus/Team subscription.
+- `robit` — interactive coding-agent CLI (REPL, 7 built-in tools, MCP client, plan mode, subagent dispatch, live cost ticker, enforcement chips). Supports Anthropic Pro/Max OAuth, OpenAI API key, and ChatGPT subscription. Run `robit login chatgpt` to authenticate via your ChatGPT Plus/Team subscription.
 - `insighter` — runtime inspector + proxy. The `--passthrough-auth` flag forwards host agents' subscription tokens (Anthropic OAuth, OpenAI Bearer, Gemini API key, ChatGPT JWTs) to upstream so claude-code / codex can use their own billing while still getting enforcement.
 
 Both binaries auto-load `.env` from cwd and `~/.enchanter/.env` at startup. Shell env wins over `.env`. See [`docs/auth.md`](docs/auth.md) for the full env-var matrix.
@@ -60,7 +60,7 @@ Both binaries auto-load `.env` from cwd and `~/.enchanter/.env` at startup. Shel
 
 ## LLM proxy quickstart
 
-> **CLI binaries (0.5.0):** `enchanter` is the coding-agent CLI; `insighter` is the runtime inspector (engines, conduct, inference, proxy server).
+> **CLI binaries (0.5.0):** `robit` is the coding-agent CLI; `insighter` is the runtime inspector (engines, conduct, inference, proxy server).
 
 `insighter serve --proxy 127.0.0.1:8000` runs a wire-format proxy that accepts requests on three endpoints and routes upstream via LiteLLM:
 

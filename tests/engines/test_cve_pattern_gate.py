@@ -10,16 +10,16 @@ from __future__ import annotations
 
 import pytest
 
-from enchanter.core import (
+from robit.core import (
     InProcessBus,
     Orchestrator,
     OrchestratorConfig,
     SecurityVetoError,
     create_request_context,
 )
-from enchanter.core.bus import build_event
-from enchanter.core.context import RequestContext
-from enchanter.engines.cve_pattern_gate import adapter as gate
+from robit.core.bus import build_event
+from robit.core.context import RequestContext
+from robit.engines.cve_pattern_gate import adapter as gate
 
 
 # ---------------------------------------------------------------------------
@@ -123,8 +123,8 @@ async def test_high_severity_hit_does_not_veto():
 
 async def test_medium_severity_hit_does_not_veto():
     """Medium-severity pattern hits ack with degraded=True; dispatch still completes."""
-    from enchanter.engines.cve_pattern_gate.patterns import CvePattern
-    from enchanter.engines.cve_pattern_gate.adapter import CvePatternGate
+    from robit.engines.cve_pattern_gate.patterns import CvePattern
+    from robit.engines.cve_pattern_gate.adapter import CvePatternGate
     import re
 
     # Build a gate instance with a custom medium-severity pattern so we can
@@ -141,11 +141,11 @@ async def test_medium_severity_hit_does_not_veto():
     )
 
     original_patterns = __import__(
-        "enchanter.engines.cve_pattern_gate.patterns", fromlist=["CVE_PATTERNS"]
+        "robit.engines.cve_pattern_gate.patterns", fromlist=["CVE_PATTERNS"]
     ).CVE_PATTERNS
 
-    import enchanter.engines.cve_pattern_gate.adapter as _adapter_mod
-    import enchanter.engines.cve_pattern_gate.patterns as _patterns_mod
+    import robit.engines.cve_pattern_gate.adapter as _adapter_mod
+    import robit.engines.cve_pattern_gate.patterns as _patterns_mod
 
     # Monkey-patch CVE_PATTERNS for this test.
     _patterns_mod.CVE_PATTERNS = (medium_pattern,)

@@ -81,7 +81,7 @@ def http_post(url: str, body: dict, timeout: float = 6.0) -> tuple[int, dict, by
 
 @asynccontextmanager
 async def proxy_running(host: str, port: int):
-    from enchanter.proxy import ProxyServer
+    from robit.proxy import ProxyServer
     server = ProxyServer(host=host, port=port)
     bound_host, bound_port = await server.start()
     serve_task = asyncio.create_task(server.serve_forever())
@@ -246,7 +246,7 @@ async def case_fastpath_bypass(state_dir: Path, port_holder: list[int]) -> None:
     Verifies env-gated + key-allowlisted bypass cycle end-to-end."""
     print("\n-- Case 7: fast-path bypass cycle (env gate + allow-list + audit) --")
     import hashlib, os
-    from enchanter.proxy import fastpath as fp_mod
+    from robit.proxy import fastpath as fp_mod
 
     # Write allow-list with a single SHA-256 of our test key
     test_key = "sk-fastpath-smoke"
@@ -269,7 +269,7 @@ async def case_fastpath_bypass(state_dir: Path, port_holder: list[int]) -> None:
         {"Content-Type": "application/json"},
         b'{"id":"msg_fp","type":"message","content":[{"type":"text","text":"hi"}]}',
     )
-    with patch("enchanter.proxy.fastpath.passthrough", new=AsyncMock(return_value=fake_resp)):
+    with patch("robit.proxy.fastpath.passthrough", new=AsyncMock(return_value=fake_resp)):
         async with proxy_running("127.0.0.1", 0) as (host, port):
             port_holder.append(port)
             body = {
@@ -360,7 +360,7 @@ async def main() -> int:
     print("Patching litellm.acompletion with in-process mock...")
     with tempfile.TemporaryDirectory() as tmp:
         state_dir = Path(tmp)
-        with patch("enchanter.proxy.upstream.litellm.acompletion", upstream_mock):
+        with patch("robit.proxy.upstream.litellm.acompletion", upstream_mock):
             async with proxy_running("127.0.0.1", 0) as (host, port):
                 print(f"Proxy listening on {host}:{port}\n")
                 await case_benign_anthropic(host, port, captured)

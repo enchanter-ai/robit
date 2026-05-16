@@ -1,4 +1,4 @@
-"""tests/registry/test_trust_pin.py — unit tests for enchanter.registry.trust_pin.
+"""tests/registry/test_trust_pin.py — unit tests for robit.registry.trust_pin.
 
 8 tests covering:
   T1  Digest is deterministic and stable across arg/env/schema reorderings.
@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.registry.trust_pin import (
+from robit.registry.trust_pin import (
     InMemoryTrustPinStore,
     PersistentTrustPinStore,
     TrustPinInputs,
@@ -30,7 +30,7 @@ from enchanter.registry.trust_pin import (
     compute_trust_pin_digest,
     from_transport_descriptor,
 )
-from enchanter.transport.descriptor import TransportDescriptor
+from robit.transport.descriptor import TransportDescriptor
 
 
 # ---------------------------------------------------------------------------

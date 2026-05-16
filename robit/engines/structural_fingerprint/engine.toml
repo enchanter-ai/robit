@@ -1,0 +1,11 @@
+name = "structural-fingerprint"
+description = "Required at trust-gate. Triple-axis structural fingerprinting (N1 shape hash, N2 TF token signature, N3 naming convention) for schema-drift detection. Fail-closed on N1/N3 drift; N2-only drift degrades."
+version = "1.0.0"
+phases = ["trust-gate"]
+required = true
+budget_tier = "always"
+adapter = "robit.engines.structural_fingerprint.adapter:adapter"
+
+[topics]
+subscribes = ["mcp.tools.list.received"]
+emits = ["structural-fingerprint.pattern.fingerprinted", "structural-fingerprint.schema.drift.detected"]

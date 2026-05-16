@@ -1,13 +1,13 @@
-"""Tests for enchanter.loader.runtimes.python — Python-runtime adapter resolution."""
+"""Tests for robit.loader.runtimes.python — Python-runtime adapter resolution."""
 
 from __future__ import annotations
 
 import pytest
 
-from enchanter.loader.errors import EngineLoadError
-from enchanter.loader.manifest import EngineManifest, EngineTopics
-from enchanter.loader.runtimes import load_runtime
-from enchanter.loader.runtimes.python import load_python_adapter
+from robit.loader.errors import EngineLoadError
+from robit.loader.manifest import EngineManifest, EngineTopics
+from robit.loader.runtimes import load_runtime
+from robit.loader.runtimes.python import load_python_adapter
 
 
 def _python_manifest(adapter: str, name: str = "test") -> EngineManifest:
@@ -26,7 +26,7 @@ def _python_manifest(adapter: str, name: str = "test") -> EngineManifest:
 
 def test_python_runtime_loads_real_engine() -> None:
     """A bundled engine (secret_mask) loads via the registry without error."""
-    m = _python_manifest("enchanter.engines.secret_mask.adapter:adapter")
+    m = _python_manifest("robit.engines.secret_mask.adapter:adapter")
     adapter = load_runtime(m)
     assert adapter is not None
     assert hasattr(adapter, "on_phase")
@@ -39,10 +39,10 @@ def test_python_runtime_loads_real_engine() -> None:
 @pytest.mark.asyncio
 async def test_python_runtime_on_phase_works_on_loaded_engine() -> None:
     """on_phase round-trip on a real engine returns a PluginAck."""
-    from enchanter.core import PluginAck, create_request_context
-    from enchanter.core.events import EnchantedEvent
+    from robit.core import PluginAck, create_request_context
+    from robit.core.events import EnchantedEvent
 
-    m = _python_manifest("enchanter.engines.secret_mask.adapter:adapter")
+    m = _python_manifest("robit.engines.secret_mask.adapter:adapter")
     adapter = load_runtime(m)
 
     ctx = create_request_context(session_id="s", budget_tier="HIGH")
@@ -74,7 +74,7 @@ def test_python_runtime_missing_module_raises_engine_load_error() -> None:
 
 def test_python_runtime_missing_attribute_raises_engine_load_error() -> None:
     # Module exists, attribute does not.
-    m = _python_manifest("enchanter.engines.secret_mask.adapter:not_an_attribute")
+    m = _python_manifest("robit.engines.secret_mask.adapter:not_an_attribute")
     with pytest.raises(EngineLoadError) as exc_info:
         load_runtime(m)
     assert "not_an_attribute" in str(exc_info.value)

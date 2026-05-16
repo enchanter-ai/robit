@@ -1,4 +1,4 @@
-"""Tests for enchanter.loader.discovery — real engine registry integration."""
+"""Tests for robit.loader.discovery — real engine registry integration."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.core.plugin import PluginAdapter
-from enchanter.loader import load_engine_registry, find_engine_manifests
-from enchanter.loader.errors import EngineLoadError
+from robit.core.plugin import PluginAdapter
+from robit.loader import load_engine_registry, find_engine_manifests
+from robit.loader.errors import EngineLoadError
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Resolve the repo root (two levels up from enchanter/loader/discovery.py)
+# Resolve the repo root (two levels up from robit/loader/discovery.py)
 # ──────────────────────────────────────────────────────────────────────────────
 
 _REPO_ROOT = Path(__file__).parent.parent.parent  # enchanter-agent/
@@ -59,7 +59,7 @@ def test_every_adapter_is_plugin_adapter() -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_broken_adapter_raises_engine_load_error(tmp_path: Path) -> None:
-    engines_dir = tmp_path / "enchanter" / "engines" / "broken_engine"
+    engines_dir = tmp_path / "robit" / "engines" / "broken_engine"
     engines_dir.mkdir(parents=True)
     (engines_dir / "engine.toml").write_text(
         textwrap.dedent("""\
@@ -69,7 +69,7 @@ def test_broken_adapter_raises_engine_load_error(tmp_path: Path) -> None:
             phases = ["trust-gate"]
             required = false
             budget_tier = "always"
-            adapter = "enchanter.engines.nonexistent_module.adapter:adapter"
+            adapter = "robit.engines.nonexistent_module.adapter:adapter"
 
             [topics]
             subscribes = ["x"]
@@ -83,7 +83,7 @@ def test_broken_adapter_raises_engine_load_error(tmp_path: Path) -> None:
 
     err = exc_info.value
     assert err.engine_name == "broken-engine"
-    assert err.adapter_path == "enchanter.engines.nonexistent_module.adapter:adapter"
+    assert err.adapter_path == "robit.engines.nonexistent_module.adapter:adapter"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ def test_broken_adapter_raises_engine_load_error(tmp_path: Path) -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_directory_without_engine_toml_is_skipped(tmp_path: Path) -> None:
-    engines_dir = tmp_path / "enchanter" / "engines"
+    engines_dir = tmp_path / "robit" / "engines"
 
     # One valid engine.
     valid_dir = engines_dir / "valid_engine"
@@ -104,7 +104,7 @@ def test_directory_without_engine_toml_is_skipped(tmp_path: Path) -> None:
             phases = ["trust-gate"]
             required = false
             budget_tier = "always"
-            adapter = "enchanter.engines.destructive_op_gate.adapter:adapter"
+            adapter = "robit.engines.destructive_op_gate.adapter:adapter"
 
             [topics]
             subscribes = ["x"]

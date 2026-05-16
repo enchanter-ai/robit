@@ -25,12 +25,12 @@ from typing import Any
 
 import pytest
 
-from enchanter.core import EnchantedEvent, RequestContext, create_request_context
-from enchanter.core.bus import build_event
-from enchanter.llm import CompletionResponse, MockLlmClient
-from enchanter.llm.types import Message
-from enchanter.engines.deep_research import DeepResearch, ResearchResult, run_pipeline
-from enchanter.engines.deep_research.artifacts import (
+from robit.core import EnchantedEvent, RequestContext, create_request_context
+from robit.core.bus import build_event
+from robit.llm import CompletionResponse, MockLlmClient
+from robit.llm.types import Message
+from robit.engines.deep_research import DeepResearch, ResearchResult, run_pipeline
+from robit.engines.deep_research.artifacts import (
     Claim,
     ClaimsDoc,
     Source,
@@ -41,14 +41,14 @@ from enchanter.engines.deep_research.artifacts import (
     write_sources,
     today_str,
 )
-from enchanter.engines.deep_research.phases.decompose import run_decompose
-from enchanter.engines.deep_research.phases.cast import run_cast
-from enchanter.engines.deep_research.phases.triangulate import run_triangulate
-from enchanter.engines.deep_research.phases.gap_fill import run_gap_fill, generate_gap_queries
-from enchanter.engines.deep_research.phases.synthesize import run_synthesize
-from enchanter.engines.deep_research.phases.verify import run_verify
-from enchanter.runtime.tier_router import TierRouter
-from enchanter.runtime.models_registry import ModelsRegistry
+from robit.engines.deep_research.phases.decompose import run_decompose
+from robit.engines.deep_research.phases.cast import run_cast
+from robit.engines.deep_research.phases.triangulate import run_triangulate
+from robit.engines.deep_research.phases.gap_fill import run_gap_fill, generate_gap_queries
+from robit.engines.deep_research.phases.synthesize import run_synthesize
+from robit.engines.deep_research.phases.verify import run_verify
+from robit.runtime.tier_router import TierRouter
+from robit.runtime.models_registry import ModelsRegistry
 
 
 # ---------------------------------------------------------------------------

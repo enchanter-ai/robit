@@ -1,4 +1,4 @@
-"""Tests for enchanter.agent.subagents.dispatch — SubagentTool behavior."""
+"""Tests for robit.agent.subagents.dispatch — SubagentTool behavior."""
 
 from __future__ import annotations
 
@@ -7,21 +7,21 @@ from pathlib import Path
 
 import pytest
 
-from enchanter.agent.loop import (
+from robit.agent.loop import (
     AssistantTextDelta,
     AssistantThinking,
     ToolCallExecuted,
     TurnComplete,
 )
-from enchanter.agent.subagents.dispatch import (
+from robit.agent.subagents.dispatch import (
     MAX_SUBAGENT_DEPTH,
     SubagentTool,
 )
-from enchanter.agent.subagents.registry import SubagentRegistry, SubagentRole
-from enchanter.agent.subagents.roles import default_roles
-from enchanter.agent.tools import ToolRegistry
-from enchanter.agent.tools._types import ToolContext
-from enchanter.proxy.canonical import CanonicalUsage
+from robit.agent.subagents.registry import SubagentRegistry, SubagentRole
+from robit.agent.subagents.roles import default_roles
+from robit.agent.tools import ToolRegistry
+from robit.agent.tools._types import ToolContext
+from robit.proxy.canonical import CanonicalUsage
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ def _parent_tool_registry() -> ToolRegistry:
             self.requires_approval = False
 
         async def execute(self, args, ctx):
-            from enchanter.agent.tools import ToolResult
+            from robit.agent.tools import ToolResult
 
             return ToolResult(content=f"{self.name} ran", is_error=False)
 

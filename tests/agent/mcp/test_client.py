@@ -1,6 +1,6 @@
-"""Tests for enchanter.agent.mcp.client.MCPClient.
+"""Tests for robit.agent.mcp.client.MCPClient.
 
-We mock :class:`enchanter.transport.stdio.StdioTransport` so no real
+We mock :class:`robit.transport.stdio.StdioTransport` so no real
 subprocess is spawned. The fake transport queues incoming messages from
 "the server" and records anything the client sends.
 """
@@ -13,8 +13,8 @@ from typing import Any
 
 import pytest
 
-from enchanter.agent.mcp.client import MCPCallError, MCPClient
-from enchanter.agent.mcp.config import MCPServerConfig
+from robit.agent.mcp.client import MCPCallError, MCPClient
+from robit.agent.mcp.config import MCPServerConfig
 
 
 # ---------------------------------------------------------------------------

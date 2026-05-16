@@ -7,8 +7,8 @@ import json
 
 import pytest
 
-from enchanter.mcp_server.http import ServerHttpTransport
-from enchanter.mcp_server.server import MCPServer
+from robit.mcp_server.http import ServerHttpTransport
+from robit.mcp_server.server import MCPServer
 
 
 async def _post(host: str, port: int, path: str, body: bytes) -> tuple[int, dict, bytes]:
@@ -76,13 +76,13 @@ async def test_http_initialize_list_call_round_trip() -> None:
         assert status == 200
         obj = json.loads(resp_body)
         names = {t["name"] for t in obj["result"]["tools"]}
-        assert "enchanter.scan_secrets" in names
+        assert "robit.scan_secrets" in names
 
         # tools/call
         body = json.dumps({
             "jsonrpc": "2.0", "id": 3, "method": "tools/call",
             "params": {
-                "name": "enchanter.scan_secrets",
+                "name": "robit.scan_secrets",
                 "arguments": {"text": "hello world"},
             },
         }).encode("utf-8")

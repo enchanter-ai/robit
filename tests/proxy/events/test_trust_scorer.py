@@ -1,4 +1,4 @@
-"""Tests for enchanter.proxy.events.trust_scorer — Wave 13.1 emitter.
+"""Tests for robit.proxy.events.trust_scorer — Wave 13.1 emitter.
 
 Covers:
   - Identity contract (name, phases, discovery ordering after builtin).
@@ -19,17 +19,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from enchanter.core import InProcessBus
-from enchanter.engines.trust_scorer.adapter import adapter as trust_engine
-from enchanter.proxy import upstream
-from enchanter.proxy.canonical import CanonicalRequest, Message, TextPart
-from enchanter.proxy.events import EmitPhase, load_emitters
-from enchanter.proxy.events._types import EmitContext
-from enchanter.proxy.events.trust_scorer import (
+from robit.core import InProcessBus
+from robit.engines.trust_scorer.adapter import adapter as trust_engine
+from robit.proxy import upstream
+from robit.proxy.canonical import CanonicalRequest, Message, TextPart
+from robit.proxy.events import EmitPhase, load_emitters
+from robit.proxy.events._types import EmitContext
+from robit.proxy.events.trust_scorer import (
     TrustScorerEmitter,
     emitter as trust_scorer_emitter,
 )
-from enchanter.proxy.pipeline import PipelineOptions, PipelineResult, run
+from robit.proxy.pipeline import PipelineOptions, PipelineResult, run
 
 
 # ---------------------------------------------------------------------------

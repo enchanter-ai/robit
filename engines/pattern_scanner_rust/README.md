@@ -2,7 +2,7 @@
 
 A polyglot proof-of-concept sidecar engine for the Enchanter runtime.
 Aho-Corasick-based scanner for a subset of the patterns shipped by
-`enchanter/engines/secret_mask` and `enchanter/engines/cve_pattern_gate`.
+`robit/engines/secret_mask` and `robit/engines/cve_pattern_gate`.
 
 This crate validates the Wave 13.1.5 sidecar runtime contract end-to-end
 with a non-Python binary. It is **opt-in** — Python `secret-mask` and
@@ -10,9 +10,9 @@ with a non-Python binary. It is **opt-in** — Python `secret-mask` and
 parallel scanner; promote to required only after benchmarking proves a
 material speedup.
 
-## Layout convention — why this lives outside `enchanter/engines/`
+## Layout convention — why this lives outside `robit/engines/`
 
-`enchanter/engines/` is reserved for Python-runtime engines. The
+`robit/engines/` is reserved for Python-runtime engines. The
 `load_engine_registry` discovery walker imports each subpackage as a
 Python module and resolves an `adapter` attribute via
 `module.path:attribute` notation — that walk would choke on a directory
@@ -20,12 +20,12 @@ that has no `__init__.py` and no Python adapter.
 
 Sidecar engines, by contrast, are **binary artifacts** registered via
 their own `engine.toml` and spawned as subprocesses. They live alongside
-the `enchanter/` package, one directory per crate / binary:
+the `robit/` package, one directory per crate / binary:
 
 ```
 agent/
-├── enchanter/             ← Python package; Python engines live in
-│   └── engines/             enchanter/engines/<name>/
+├── robit/                 ← Python package; Python engines live in
+│   └── engines/             robit/engines/<name>/
 └── engines/               ← polyglot sidecars (this directory)
     └── pattern_scanner_rust/
         ├── Cargo.toml
@@ -69,7 +69,7 @@ Two options:
 
 1. **Manual registration (recommended for v0):** the operator builds the
    binary and constructs a `SidecarAdapter` from this crate's
-   `engine.toml` directly via `enchanter.loader.parse_manifest` +
+   `engine.toml` directly via `robit.loader.parse_manifest` +
    `load_sidecar_adapter`.
 2. **Discovery extension (future):** teach `load_engine_registry` to
    also walk an `engines/` directory at the repo root for `engine.toml`

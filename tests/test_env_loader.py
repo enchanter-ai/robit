@@ -1,4 +1,4 @@
-"""Tests for ``enchanter._env`` — the stdlib .env autoloader."""
+"""Tests for ``robit._env`` — the stdlib .env autoloader."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from enchanter._env import (
+from robit._env import (
     _default_user_dir,
     load_env_files,
     parse_env_file,
@@ -74,7 +74,7 @@ def test_parse_invalid_lines_skipped_and_logged(
         "1BAD=startsWithDigit\n"
         "ALSO_GOOD=ok\n"
     )
-    with caplog.at_level(logging.WARNING, logger="enchanter._env"):
+    with caplog.at_level(logging.WARNING, logger="robit._env"):
         pairs = parse_env_file(text)
     assert pairs == [("GOOD", "value"), ("ALSO_GOOD", "ok")]
     # Three invalid lines should produce three warnings.
@@ -214,7 +214,7 @@ def test_default_user_dir_posix_home(
     monkeypatch.delenv("ENCHANTER_HOME", raising=False)
     # Path.home() routes through PosixPath on `posix` which can't be
     # instantiated on Windows — stub it directly.
-    monkeypatch.setattr("enchanter._env.Path.home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr("robit._env.Path.home", classmethod(lambda cls: tmp_path))
 
     resolved = _default_user_dir()
 

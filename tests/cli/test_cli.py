@@ -1,4 +1,4 @@
-"""Tests for enchanter.insighter — calls main() directly without subprocess.
+"""Tests for robit.insighter — calls main() directly without subprocess.
 
 All tests use capsys to capture stdout/stderr and inspect return codes.
 
@@ -27,7 +27,7 @@ import json
 
 import pytest
 
-from enchanter.insighter import main
+from robit.insighter import main
 
 
 # ─── T01: version ─────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ def test_version_output_contains_version_string(capsys):
     main(["version"])
     out = capsys.readouterr().out
     assert "enchanter-agent" in out
-    from enchanter import __version__
+    from robit import __version__
     assert __version__ in out
 
 
