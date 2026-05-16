@@ -200,32 +200,39 @@ def test_default_user_dir_windows_appdata(
     monkeypatch.setattr(os, "name", "nt")
     fake_appdata = tmp_path / "AppData" / "Roaming"
     monkeypatch.setenv("APPDATA", str(fake_appdata))
+    monkeypatch.delenv("ROBIT_HOME", raising=False)
     monkeypatch.delenv("ENCHANTER_HOME", raising=False)
 
     resolved = _default_user_dir()
 
-    assert resolved == fake_appdata / "enchanter"
+    # New default — neither legacy nor new dir exists, so the uncreated
+    # new path (%APPDATA%\robit) wins.
+    assert resolved == fake_appdata / "robit"
 
 
 def test_default_user_dir_posix_home(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.delenv("ROBIT_HOME", raising=False)
     monkeypatch.delenv("ENCHANTER_HOME", raising=False)
-    # Path.home() routes through PosixPath on `posix` which can't be
-    # instantiated on Windows — stub it directly.
+    # Path.home() is consulted by both robit._env and robit._compat. Stub
+    # both module-local imports so neither resolves a real home dir.
     monkeypatch.setattr("robit._env.Path.home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr("robit._compat.Path.home", classmethod(lambda cls: tmp_path))
 
     resolved = _default_user_dir()
 
-    assert resolved == tmp_path / ".enchanter"
+    # New default — neither ~/.robit nor ~/.enchanter exists in tmp, so
+    # the uncreated new path wins.
+    assert resolved == tmp_path / ".robit"
 
 
-def test_default_user_dir_enchanter_home_override(
+def test_default_user_dir_robit_home_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    custom = tmp_path / "custom-enchanter"
-    monkeypatch.setenv("ENCHANTER_HOME", str(custom))
+    custom = tmp_path / "custom-robit"
+    monkeypatch.setenv("ROBIT_HOME", str(custom))
 
     resolved = _default_user_dir()
 

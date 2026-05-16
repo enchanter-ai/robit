@@ -2,9 +2,11 @@
 
 Layout::
 
-    $ENCHANTER_HOME/sessions/<session_id>.jsonl    (if env var set)
-    %APPDATA%\\enchanter\\sessions\\<session_id>.jsonl   (Windows default)
-    ~/.enchanter/sessions/<session_id>.jsonl       (POSIX default)
+    $ROBIT_HOME/sessions/<session_id>.jsonl       (if env var set; legacy
+                                                  $ENCHANTER_HOME also honored)
+    %APPDATA%\\robit\\sessions\\<session_id>.jsonl   (Windows default)
+    ~/.robit/sessions/<session_id>.jsonl          (POSIX default)
+    (falls back to ~/.enchanter/sessions if only the legacy dir exists)
 
 Format
 ------
@@ -48,23 +50,17 @@ _log = logging.getLogger(__name__)
 def session_dir() -> Path:
     """Return the directory holding session JSONL logs.
 
-    Resolution order:
+    Resolution order (via :func:`robit._compat.resolve_user_dir`):
 
-    1. ``$ENCHANTER_HOME/sessions``
-    2. Windows: ``%APPDATA%\\enchanter\\sessions``
-    3. POSIX:   ``~/.enchanter/sessions``
+    1. ``$ROBIT_HOME/sessions`` (or legacy ``$ENCHANTER_HOME``).
+    2. ``~/.robit/sessions`` / ``%APPDATA%\\robit\\sessions``.
+    3. Fallback to the legacy ``~/.enchanter/sessions`` if only that exists.
 
     The directory is created (parents=True) on first call.
     """
-    override = os.environ.get("ENCHANTER_HOME")
-    if override:
-        root = Path(override)
-    elif os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        root = Path(appdata) / "enchanter" if appdata else Path.home() / ".enchanter"
-    else:
-        root = Path.home() / ".enchanter"
-    out = root / "sessions"
+    from robit._compat import resolve_user_dir
+
+    out = resolve_user_dir() / "sessions"
     out.mkdir(parents=True, exist_ok=True)
     return out
 

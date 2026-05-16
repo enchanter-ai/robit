@@ -376,7 +376,7 @@ def test_conduct_loader_composer_produces_valid_xml():
 
 def test_inference_substrate_status_runs_clean(tmp_path):
     """Substrate status call works without crashing on a fresh state dir."""
-    os.environ["ENCHANTER_INFERENCE_STATE"] = str(tmp_path / "infer")
+    os.environ["ROBIT_INFERENCE_STATE"] = str(tmp_path / "infer")
     try:
         from robit.inference import status
 
@@ -384,7 +384,7 @@ def test_inference_substrate_status_runs_clean(tmp_path):
         assert isinstance(result, dict)
         assert "state_dir" in result
     finally:
-        del os.environ["ENCHANTER_INFERENCE_STATE"]
+        del os.environ["ROBIT_INFERENCE_STATE"]
 
 
 # ─── Tier router + registry wiring ──────────────────────────────────────────

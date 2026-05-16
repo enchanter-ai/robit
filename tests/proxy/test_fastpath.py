@@ -162,8 +162,8 @@ async def test_gemini_eligible_with_x_goog() -> None:
 
 
 async def test_load_config_env_unset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.delenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", raising=False)
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.delenv("ROBIT_ALLOW_FASTPATH_BYPASS", raising=False)
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     cfg = fastpath.load_config(force_reload=True)
     assert cfg.enabled is False
 
@@ -171,8 +171,8 @@ async def test_load_config_env_unset(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 async def test_load_config_env_set_but_no_allowlist(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_ALLOW_FASTPATH_BYPASS", "1")
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     caplog.set_level("WARNING", logger="robit.proxy.fastpath")
     cfg = fastpath.load_config(force_reload=True)
     assert cfg.enabled is False
@@ -182,8 +182,8 @@ async def test_load_config_env_set_but_no_allowlist(
 async def test_load_config_malformed_allowlist(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_ALLOW_FASTPATH_BYPASS", "1")
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     (tmp_path / "fastpath-allowlist.json").write_text("not-json", encoding="utf-8")
     caplog.set_level("WARNING", logger="robit.proxy.fastpath")
     cfg = fastpath.load_config(force_reload=True)
@@ -194,8 +194,8 @@ async def test_load_config_malformed_allowlist(
 async def test_load_config_happy_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_ALLOW_FASTPATH_BYPASS", "1")
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     allowlist = {
         "keys": [_hash("sk-prod"), _hash("sk-staging")],
         "models": ["claude-3-5-sonnet-20241022"],
@@ -217,7 +217,7 @@ async def test_load_config_happy_path(
 async def test_record_bypass_appends_jsonl(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     await fastpath.record_bypass(
         upstream_provider="anthropic",
         key_hash_short="abc123def456",
@@ -248,8 +248,8 @@ async def test_integration_bypass_fires_with_x_enchanter_fastpath_header(
 ) -> None:
     from robit.proxy import ProxyServer
 
-    monkeypatch.setenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", "1")
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_ALLOW_FASTPATH_BYPASS", "1")
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     allowlist = {
         "keys": [_hash("sk-trusted")],
         "models": ["claude-3-5-sonnet-20241022"],
@@ -305,7 +305,7 @@ async def test_integration_pipeline_path_when_env_unset(
     from robit.proxy import ProxyServer
     from robit.proxy.canonical import CanonicalResponse, CanonicalUsage, TextPart
 
-    monkeypatch.delenv("ENCHANTER_ALLOW_FASTPATH_BYPASS", raising=False)
+    monkeypatch.delenv("ROBIT_ALLOW_FASTPATH_BYPASS", raising=False)
     fastpath.load_config(force_reload=True)
 
     # Mock LiteLLM so we hit the pipeline without network. Patch the

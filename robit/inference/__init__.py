@@ -1,7 +1,7 @@
 """robit.inference — cross-session evidence accumulation substrate.
 
 Port of ``wixie/shared/scripts/inference-engine.py``.  Algorithms U1-U6
-preserved verbatim; env var and path conventions adapted for enchanter-agent.
+preserved verbatim; env var and path conventions adapted for robit.
 
 Public exports (importable without the CLI layer):
     InferenceSubstrate  — thin facade over the core math functions

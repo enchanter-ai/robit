@@ -57,8 +57,8 @@ DEFAULT_TIMEOUT_S: float = 30.0
 
 #: How we identify ourselves to the server on initialize.
 CLIENT_INFO = {
-    "name": "enchanter-agent",
-    "version": "0.5",
+    "name": "robit",
+    "version": "0.7",
 }
 
 

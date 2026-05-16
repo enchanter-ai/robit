@@ -41,7 +41,7 @@ from .types import CompletionRequest, CompletionResponse
 # Upstream endpoint per Wave 16.0 codex-protocol audit. Hardcoded; the
 # ChatGPT-internal base URL has no public override.
 CHATGPT_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses"
-USER_AGENT = "enchanter-agent/0.6 (codex-responses)"
+USER_AGENT = "robit/0.7 (codex-responses)"
 
 
 class ConfigurationError(ValueError):
@@ -57,7 +57,8 @@ class ChatGptClient:
     2. ``CHATGPT_SESSION_TOKEN`` env var — JSON blob matching the cache shape,
        or a bare access_token string (treated as expiring in 1 hour with no
        refresh capability).
-    3. Cache file at ``~/.enchanter/chatgpt-token.json`` (or APPDATA / ``ENCHANTER_HOME``).
+    3. Cache file at ``~/.robit/chatgpt-token.json`` (or APPDATA / ``ROBIT_HOME``;
+       legacy ``~/.enchanter`` / ``ENCHANTER_HOME`` honored with a deprecation warning).
     4. Otherwise ``ConfigurationError``.
 
     ``complete()`` posts to ``chatgpt.com/backend-api/codex/responses``. See
@@ -72,7 +73,7 @@ class ChatGptClient:
             raise ConfigurationError(
                 "No ChatGPT subscription credentials found. Provide token=, set "
                 "CHATGPT_SESSION_TOKEN, or run the PKCE flow to populate the "
-                "cache at ~/.enchanter/chatgpt-token.json."
+                "cache at ~/.robit/chatgpt-token.json."
             )
         self._token: ChatGptToken = resolved
 

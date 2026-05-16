@@ -30,7 +30,7 @@ async def test_initialize_returns_capabilities() -> None:
     assert obj["id"] == 1
     assert obj["result"]["protocolVersion"] == PROTOCOL_VERSION
     assert "tools" in obj["result"]["capabilities"]
-    assert obj["result"]["serverInfo"]["name"] == "enchanter-mcp-server"
+    assert obj["result"]["serverInfo"]["name"] == "robit-mcp-server"
 
 
 @pytest.mark.asyncio

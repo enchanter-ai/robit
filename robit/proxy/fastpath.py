@@ -3,8 +3,9 @@
 Skips the parse-translate-render cycle (conduct injection + lifecycle
 trust-gate + secret-mask post-response) when ALL of the following hold:
 
-  1. Server-side env var ENCHANTER_ALLOW_FASTPATH_BYPASS=1 is set at
-     startup. Without it, the entire fast-path code is unreachable.
+  1. Server-side env var ROBIT_ALLOW_FASTPATH_BYPASS=1 is set at
+     startup (legacy ENCHANTER_ALLOW_FASTPATH_BYPASS still honored via
+     robit._compat). Without it, the entire fast-path code is unreachable.
   2. The caller's API key (SHA-256 of the credential header value) is
      in <state_dir>/fastpath-allowlist.json under key "keys".
   3. The request's wire format maps to a known upstream provider.
@@ -62,6 +63,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from robit._compat import get_env
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,8 +72,8 @@ logger = logging.getLogger(__name__)
 # Constants
 # ───────────────────────────────────────────────────────────────────────────
 
-_ENV_GATE: str = "ENCHANTER_ALLOW_FASTPATH_BYPASS"
-_ENV_STATE_DIR: str = "ENCHANTER_STATE_DIR"
+_ENV_GATE: str = "ROBIT_ALLOW_FASTPATH_BYPASS"
+_ENV_STATE_DIR: str = "ROBIT_STATE_DIR"
 _DEFAULT_MAX_BODY_BYTES: int = 1 * 1024 * 1024  # 1 MiB
 
 _UPSTREAM_URL: dict[str, str] = {
@@ -107,19 +110,18 @@ class FastPathDecision:
 
 
 def _resolve_state_dir() -> Path:
-    env = os.environ.get(_ENV_STATE_DIR)
+    env = get_env(_ENV_STATE_DIR)
     if env:
         return Path(env)
     here = Path(__file__).resolve()
     for parent in (here, *here.parents):
         if (parent / "pyproject.toml").exists():
             return parent / "state"
-    # Platform default
-    if os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "enchanter"
-    return Path.home() / ".enchanter"
+    # Platform default — honors both ~/.robit and the legacy ~/.enchanter
+    # via :mod:`robit._compat`.
+    from robit._compat import resolve_user_dir
+
+    return resolve_user_dir()
 
 
 def _allowlist_path() -> Path:
@@ -142,7 +144,7 @@ _CACHED_CONFIG_KEY: tuple[str, str] | None = None
 def load_config(*, force_reload: bool = False) -> FastPathConfig:
     """Read env var + allow-list file. Cached on (env_value, allowlist_path)."""
     global _CACHED_CONFIG, _CACHED_CONFIG_KEY
-    env_value = os.environ.get(_ENV_GATE, "")
+    env_value = get_env(_ENV_GATE, "") or ""
     allow_path = _allowlist_path()
     cache_key = (env_value, str(allow_path))
     if not force_reload and _CACHED_CONFIG is not None and _CACHED_CONFIG_KEY == cache_key:
@@ -155,7 +157,7 @@ def load_config(*, force_reload: bool = False) -> FastPathConfig:
 
     if not allow_path.exists():
         logger.warning(
-            "fastpath: ENCHANTER_ALLOW_FASTPATH_BYPASS=1 but %s does not exist; "
+            "fastpath: ROBIT_ALLOW_FASTPATH_BYPASS=1 but %s does not exist; "
             "fast path disabled.",
             allow_path,
         )

@@ -23,7 +23,7 @@ def _redirect_state_dir(tmp_path, monkeypatch):
     polluted by tests; the per-test ``asyncio.Lock`` swap keeps tests that
     share an event-loop policy isolated from each other.
     """
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     # Replace the module's lock per test so each test gets a fresh, unlocked
     # lock attached to its own event loop.
     monkeypatch.setattr(_audit, "_WRITE_LOCK", asyncio.Lock())
@@ -40,13 +40,13 @@ def _expected_audit_file(tmp_path: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 def test_path_env_var_wins(tmp_path, monkeypatch):
-    monkeypatch.setenv("ENCHANTER_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("ROBIT_STATE_DIR", str(tmp_path))
     p = _audit.get_audit_path()
     assert p == tmp_path / "audit" / "sidecar-rejections.jsonl"
 
 
 def test_path_repo_root_when_no_env(tmp_path, monkeypatch):
-    monkeypatch.delenv("ENCHANTER_STATE_DIR", raising=False)
+    monkeypatch.delenv("ROBIT_STATE_DIR", raising=False)
     repo_root = tmp_path / "fakerepo"
     repo_root.mkdir()
     (repo_root / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
@@ -59,7 +59,7 @@ def test_path_repo_root_when_no_env(tmp_path, monkeypatch):
 
 
 def test_path_platform_default_when_no_env_no_repo(tmp_path, monkeypatch):
-    monkeypatch.delenv("ENCHANTER_STATE_DIR", raising=False)
+    monkeypatch.delenv("ROBIT_STATE_DIR", raising=False)
     isolated = tmp_path / "no-repo-here"
     isolated.mkdir()
     monkeypatch.chdir(isolated)
@@ -68,11 +68,14 @@ def test_path_platform_default_when_no_env_no_repo(tmp_path, monkeypatch):
     monkeypatch.setattr(_audit, "_find_repo_root", lambda _start: None)
 
     p = _audit.get_audit_path()
+    # The default is ~/.robit/audit (or %APPDATA%\robit\audit on Windows),
+    # falling back to ~/.enchanter/audit if only the legacy dir exists.
+    p_str = str(p).lower()
     if sys.platform.startswith("win"):
-        assert "enchanter" in str(p).lower() and "audit" in str(p).lower()
+        assert "audit" in p_str and ("robit" in p_str or "enchanter" in p_str)
     else:
         assert p.parent.name == "audit"
-        assert ".enchanter" in str(p)
+        assert ".robit" in str(p) or ".enchanter" in str(p)
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +250,7 @@ async def test_concurrent_calls_all_land(tmp_path):
 
 @pytest.mark.asyncio
 async def test_fsync_env_var_triggers_fsync(tmp_path, monkeypatch):
-    monkeypatch.setenv("ENCHANTER_AUDIT_FSYNC", "1")
+    monkeypatch.setenv("ROBIT_AUDIT_FSYNC", "1")
     with mock.patch("robit.loader.runtimes._audit.os.fsync") as m_fsync:
         await _audit.record_rejection("a", "source-forgery", {"x": 1})
     assert m_fsync.called, "fsync should have been invoked when env var is set"
@@ -255,7 +258,7 @@ async def test_fsync_env_var_triggers_fsync(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fsync_default_off(tmp_path, monkeypatch):
-    monkeypatch.delenv("ENCHANTER_AUDIT_FSYNC", raising=False)
+    monkeypatch.delenv("ROBIT_AUDIT_FSYNC", raising=False)
     with mock.patch("robit.loader.runtimes._audit.os.fsync") as m_fsync:
         await _audit.record_rejection("a", "source-forgery", {"x": 1})
     assert not m_fsync.called, "fsync must NOT be invoked by default"

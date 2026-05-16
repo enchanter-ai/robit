@@ -62,10 +62,13 @@ robit "refactor auth.py"
 | `OPENAI_API_KEY` | robit (when model is `gpt-*` / `o*`), insighter proxy upstream | API key | LiteLLM consumes (`robit/proxy/upstream.py:15`) |
 | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | robit (when model is `gemini-*`), insighter proxy upstream | API key | LiteLLM consumes (`robit/proxy/upstream.py:17`) |
 | `CHATGPT_SESSION_TOKEN` | robit | ChatGPT subscription | JSON blob or bare access_token. Rarely set directly — prefer `robit login chatgpt` (`robit/llm/chatgpt_client.py:83`) |
-| `ENCHANTER_HOME` | robit, insighter | (config dir override) | Default `~/.enchanter` POSIX, `%APPDATA%\enchanter` Windows (`robit/llm/_chatgpt_auth.py:41`, `robit/_env.py:36`) |
-| `ENCHANTER_ALLOW_FASTPATH_BYPASS` | insighter proxy | (operator gate) | Must be exactly `1` to enable fast path (`robit/proxy/fastpath.py:72`, `:151`) |
-| `ENCHANTER_STATE_DIR` | insighter proxy | (state path override) | Overrides where audit JSONLs and allowlist live (`robit/proxy/fastpath.py:73`, `:109`) |
-| `ENCHANTER_AGENT_MOCK` | robit | (test) | Use deterministic mock LLM; no real network call (`robit/agent/cli.py:15`) |
+| `ROBIT_HOME` | robit, insighter | (config dir override) | Default `~/.robit` POSIX, `%APPDATA%\robit` Windows. Legacy `ENCHANTER_HOME` and `~/.enchanter` still honored with a one-shot deprecation warning via `robit._compat`. |
+| `ROBIT_ALLOW_FASTPATH_BYPASS` | insighter proxy | (operator gate) | Must be exactly `1` to enable fast path. Legacy `ENCHANTER_ALLOW_FASTPATH_BYPASS` still honored. |
+| `ROBIT_STATE_DIR` | insighter proxy | (state path override) | Overrides where audit JSONLs and allowlist live. Legacy `ENCHANTER_STATE_DIR` still honored. |
+| `ROBIT_AGENT_MOCK` | robit | (test) | Use deterministic mock LLM; no real network call. Legacy `ENCHANTER_AGENT_MOCK` still honored. |
+| `ROBIT_INFERENCE_ENABLED` | robit, insighter | (substrate gate) | Opt-in for the inference substrate. Legacy `ENCHANTER_INFERENCE_ENABLED` still honored. |
+| `ROBIT_INFERENCE_STATE` | robit, insighter | (substrate state override) | Override the inference state dir. Legacy `ENCHANTER_INFERENCE_STATE` still honored. |
+| `ROBIT_AUDIT_FSYNC` | robit, insighter | (audit fsync) | Set to `1` to fsync sidecar audit lines. Legacy `ENCHANTER_AUDIT_FSYNC` still honored. |
 
 ## `.env` loading
 
@@ -76,8 +79,10 @@ Wave 17.0 added stdlib `.env` auto-loading. Both `robit` and
 **Lookup precedence** (highest wins; `robit/_env.py:202`):
 
 1. `<cwd>/.env`
-2. `<user_dir>/.env` — `ENCHANTER_HOME/.env` if set, else `%APPDATA%\enchanter\.env`
-   (Windows) or `~/.enchanter/.env` (POSIX) (`robit/_env.py:36`).
+2. `<user_dir>/.env` — `ROBIT_HOME/.env` (or legacy `ENCHANTER_HOME/.env`) if set;
+   otherwise `%APPDATA%\robit\.env` (Windows) or `~/.robit/.env` (POSIX); falls
+   back to the legacy `%APPDATA%\enchanter\.env` / `~/.enchanter/.env` if only
+   the legacy directory exists. See `robit/_compat.py` and `robit/_env.py`.
 
 The shell still wins by default — `os.environ` values already present
 are not overwritten (`robit/_env.py:218`). Inside one file, the
@@ -96,15 +101,15 @@ Invalid lines are logged at WARNING and skipped — parsing continues.
 
 | File | Created by | Lifetime |
 |---|---|---|
-| `~/.enchanter/chatgpt-token.json` | `robit login chatgpt` | Refreshed automatically until refresh fails (`robit/llm/_chatgpt_auth.py:196`) |
-| `~/.enchanter/anthropic-token.json` | (none — placeholder; see "Honest limitations") | n/a |
+| `~/.robit/chatgpt-token.json` | `robit login chatgpt` | Refreshed automatically until refresh fails (`robit/llm/_chatgpt_auth.py:196`). Legacy `~/.enchanter/chatgpt-token.json` still read. |
+| `~/.robit/anthropic-token.json` | (none — placeholder; see "Honest limitations") | n/a |
 | `<state_dir>/fastpath-allowlist.json` | operator (manual) | Persistent (`robit/proxy/fastpath.py:125`) |
 | `<state_dir>/audit/fastpath-bypass.jsonl` | proxy fast-path | Persistent, append-only (`robit/proxy/fastpath.py:129`) |
 
 Default `<state_dir>` is `<repo>/state` when a `pyproject.toml` is
-detected nearby, else `~/.enchanter` (POSIX) or `%APPDATA%\enchanter\`
+detected nearby, else `~/.robit` (POSIX) or `%APPDATA%\robit\`
 (Windows) — see `robit/proxy/fastpath.py:109`. Override with
-`ENCHANTER_STATE_DIR`.
+`ROBIT_STATE_DIR` (legacy `ENCHANTER_STATE_DIR` still honored).
 
 ## `robit` coding agent — auth resolution
 
@@ -201,7 +206,7 @@ extracted by `_extract_inbound_auth`
 | Gemini | `x-goog-api-key` | `gemini-api-key` |
 
 The credential is stashed on `canonical_req.metadata`
-(`_enchanter_passthrough_auth`) and consumed by `upstream.py`'s
+(`_robit_passthrough_auth`) and consumed by `upstream.py`'s
 `_passthrough_auth_kwargs` (`robit/proxy/upstream.py:144`):
 
 - `anthropic-api-key`, `openai-bearer`, `gemini-api-key` → `api_key`
@@ -226,7 +231,7 @@ veto-able pattern gates) on every request.
 **skips conduct injection and the lifecycle trust-gate entirely**. It
 fires only when **all of**:
 
-1. `ENCHANTER_ALLOW_FASTPATH_BYPASS=1` at process start
+1. `ROBIT_ALLOW_FASTPATH_BYPASS=1` (or legacy `ENCHANTER_ALLOW_FASTPATH_BYPASS=1`) at process start
    (`robit/proxy/fastpath.py:72`, `:151`).
 2. SHA-256 of the caller's auth header value is listed in
    `<state_dir>/fastpath-allowlist.json` (`:253`).
@@ -298,7 +303,7 @@ will see `/v1/chat/completions` requests.
   includes `phase`, `plugin`, `reason`, `pattern_id`, `pattern_name` —
   no inbound credential is included.
 - **`_passthrough_auth_kwargs` honesty note** (`robit/proxy/upstream.py:154`):
-  the credential is held only on `req.metadata["_enchanter_passthrough_auth"]`,
+  the credential is held only on `req.metadata["_robit_passthrough_auth"]`,
   stripped before being forwarded to LiteLLM's `metadata` bag (`:208`),
   and never logged.
 

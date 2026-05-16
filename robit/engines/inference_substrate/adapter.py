@@ -62,7 +62,9 @@ def _make_derived(
 
 
 def _state_dir_from_env() -> Path | None:
-    override = os.environ.get("ENCHANTER_INFERENCE_STATE")
+    from robit._compat import get_env
+
+    override = get_env("ROBIT_INFERENCE_STATE")
     return Path(override) if override else None
 
 
@@ -138,7 +140,8 @@ class InferenceSubstrateEngine:
         state_dir: Optional[Path] = None,
         plugin_for_briefing: str = "all",
     ) -> None:
-        # state_dir=None → picks up ENCHANTER_INFERENCE_STATE or the default.
+        # state_dir=None → picks up ROBIT_INFERENCE_STATE (or the legacy
+        # ENCHANTER_INFERENCE_STATE via robit._compat) or the default.
         self._state_dir: Path | None = state_dir if state_dir is not None else _state_dir_from_env()
         self._plugin_for_briefing = plugin_for_briefing
         self._buffer: list[dict] = []

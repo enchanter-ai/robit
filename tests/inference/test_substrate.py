@@ -9,7 +9,7 @@ Covers:
   - emit appends to artifacts.jsonl
   - reconcile writes a non-trivial catalog
   - render_briefing writes markdown
-  - State dir override via ENCHANTER_INFERENCE_STATE works
+  - State dir override via ROBIT_INFERENCE_STATE works
   - emit + reconcile produces a non-trivial catalog (end-to-end)
 """
 
@@ -158,7 +158,7 @@ def test_reservoir_bounded():
 
 
 def test_emit_appends_to_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     record = {"code": "F01", "tags": ["test"], "title": "emit test"}
     emit_unconditional(record, tmp_path)
     lines = (tmp_path / "artifacts.jsonl").read_text(encoding="utf-8").strip().splitlines()
@@ -173,7 +173,7 @@ def test_emit_appends_to_jsonl(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_reconcile_writes_catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     for i in range(3):
         emit_unconditional(
             {
@@ -198,7 +198,7 @@ def test_reconcile_writes_catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 
 def test_render_briefing_writes_markdown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     out = render_briefing("enchanter", tmp_path)
     assert out.exists()
     content = out.read_text(encoding="utf-8")
@@ -211,8 +211,8 @@ def test_render_briefing_writes_markdown(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_state_dir_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """State override via ENCHANTER_INFERENCE_STATE must keep production untouched."""
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    """State override via ROBIT_INFERENCE_STATE must keep production untouched."""
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     emit_unconditional(
         {"code": "F99", "tags": ["env-test"], "title": "env override test"},
         tmp_path,
@@ -233,7 +233,7 @@ def test_state_dir_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_emit_then_reconcile_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     # Emit 3 observations of the same pattern from different sessions.
     for i in range(3):
         emit_unconditional(

@@ -135,7 +135,7 @@ def inference_status_json(s: dict[str, Any]) -> str:
 
 def aggregate_status_text(s: dict[str, Any]) -> str:
     lines = [
-        f"enchanter-agent {s.get('version', '?')}",
+        f"robit {s.get('version', '?')}",
         "",
         f"engines:          {s.get('engine_count', 0)}",
         f"conduct modules:  {s.get('conduct_count', 0)}",

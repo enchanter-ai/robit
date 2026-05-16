@@ -1,6 +1,6 @@
-"""robit.proxy.conduct — inject enchanter conduct into proxy requests.
+"""robit.proxy.conduct — inject robit conduct into proxy requests.
 
-The proxy wraps every outbound completion in the enchanter conduct envelope
+The proxy wraps every outbound completion in the robit conduct envelope
 so that downstream models inherit the same behavioural contract as the
 agent itself.  This module is a thin shim over
 :func:`robit.conduct.load_conduct` +

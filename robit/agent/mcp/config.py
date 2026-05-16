@@ -2,9 +2,10 @@
 
 File location resolution (same precedence as ``robit.agent.session``):
 
-  1. ``$ENCHANTER_HOME/mcp.json``                  (env override)
-  2. Windows: ``%APPDATA%\\enchanter\\mcp.json``
-  3. POSIX:   ``~/.enchanter/mcp.json``
+  1. ``$ROBIT_HOME/mcp.json`` (legacy ``$ENCHANTER_HOME`` honored)  (env override)
+  2. Windows: ``%APPDATA%\\robit\\mcp.json``
+  3. POSIX:   ``~/.robit/mcp.json``
+  4. Falls back to ``~/.enchanter/mcp.json`` if only the legacy dir exists.
 
 File shape::
 
@@ -54,15 +55,9 @@ class MCPServerConfig:
 
 
 def _default_config_path() -> Path:
-    override = os.environ.get("ENCHANTER_HOME")
-    if override:
-        return Path(override) / "mcp.json"
-    if os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        root = Path(appdata) / "enchanter" if appdata else Path.home() / ".enchanter"
-    else:
-        root = Path.home() / ".enchanter"
-    return root / "mcp.json"
+    from robit._compat import resolve_user_dir
+
+    return resolve_user_dir() / "mcp.json"
 
 
 def load_mcp_config(path: Path | None = None) -> list[MCPServerConfig]:

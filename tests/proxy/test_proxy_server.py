@@ -605,7 +605,7 @@ async def test_passthrough_auth_false_default_does_not_capture_auth():
         assert "api_key" not in kwargs
         # And the sentinel never reaches the LiteLLM metadata bag either.
         meta = kwargs.get("metadata", {})
-        assert "_enchanter_passthrough_auth" not in meta
+        assert "_robit_passthrough_auth" not in meta
 
 
     finally:

@@ -17,7 +17,7 @@ from robit.proxy.canonical import TextPart, ToolUsePart
 
 
 def test_session_dir_honors_enchanter_home(tmp_path, monkeypatch):
-    monkeypatch.setenv("ENCHANTER_HOME", str(tmp_path))
+    monkeypatch.setenv("ROBIT_HOME", str(tmp_path))
     d = session_dir()
     assert str(d).startswith(str(tmp_path))
     assert d.exists()
@@ -45,7 +45,7 @@ def test_round_trip_preserves_all_messages():
 
 
 def test_corrupted_line_is_skipped_not_crashed(tmp_path, monkeypatch, caplog):
-    monkeypatch.setenv("ENCHANTER_HOME", str(tmp_path))
+    monkeypatch.setenv("ROBIT_HOME", str(tmp_path))
     c = Conversation.new(model="m")
     w = SessionWriter.for_session(c.session_id)
     w.write_header(c)

@@ -1,6 +1,6 @@
 """Shared fixtures for robit.agent tests.
 
-Critical: redirect ENCHANTER_HOME to a tmp dir at module import time so
+Critical: redirect ROBIT_HOME to a tmp dir at module import time so
 session writes never touch the developer's real ~/.enchanter directory.
 """
 
@@ -15,7 +15,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolated_enchanter_home(tmp_path, monkeypatch):
-    """Per-test ENCHANTER_HOME so session JSONLs land in tmp."""
-    monkeypatch.setenv("ENCHANTER_HOME", str(tmp_path))
-    monkeypatch.setenv("ENCHANTER_AGENT_MOCK", "1")
+    """Per-test ROBIT_HOME so session JSONLs land in tmp."""
+    monkeypatch.setenv("ROBIT_HOME", str(tmp_path))
+    monkeypatch.setenv("ROBIT_AGENT_MOCK", "1")
     yield tmp_path

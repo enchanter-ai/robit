@@ -7,9 +7,11 @@ interface around it.
 
 Token cache layout (matches ``_chatgpt_auth._default_token_path``):
 
-    $ENCHANTER_HOME/<provider>-token.json     (when ENCHANTER_HOME is set)
-    %APPDATA%/enchanter/<provider>-token.json (Windows fallback)
-    ~/.enchanter/<provider>-token.json        (POSIX fallback)
+    $ROBIT_HOME/<provider>-token.json         (when ROBIT_HOME is set;
+                                              legacy ENCHANTER_HOME also honored)
+    %APPDATA%/robit/<provider>-token.json     (Windows fallback)
+    ~/.robit/<provider>-token.json            (POSIX fallback)
+    (legacy ~/.enchanter / %APPDATA%/enchanter still read if only those exist)
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from robit.llm._chatgpt_auth import (
     save_token,
 )
 
-# Providers that have a token file under the enchanter home dir.
+# Providers that have a token file under the robit home dir.
 _PROVIDERS: tuple[str, ...] = ("chatgpt", "anthropic")
 
 
@@ -40,25 +42,20 @@ _PROVIDERS: tuple[str, ...] = ("chatgpt", "anthropic")
 # ---------------------------------------------------------------------------
 
 
-def _enchanter_home() -> Path:
+def _robit_home() -> Path:
     """Return the directory where ``<provider>-token.json`` files live.
 
-    Mirrors ``_chatgpt_auth._default_token_path``'s rules so the two stay
-    in sync without importing a private helper.
+    Mirrors ``_chatgpt_auth._default_token_path``'s rules by delegating to
+    :func:`robit._compat.resolve_user_dir`.
     """
-    override = os.environ.get("ENCHANTER_HOME")
-    if override:
-        return Path(override)
-    if os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "enchanter"
-    return Path.home() / ".enchanter"
+    from robit._compat import resolve_user_dir
+
+    return resolve_user_dir()
 
 
 def token_path(provider: str) -> Path:
     """Return the token cache path for ``provider`` (no I/O)."""
-    return _enchanter_home() / f"{provider}-token.json"
+    return _robit_home() / f"{provider}-token.json"
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +121,7 @@ async def login_chatgpt() -> int:
 
 # TODO Wave 18: implement standalone Anthropic OAuth flow if feasible.
 _ANTHROPIC_STUB = """\
-Anthropic Pro/Max OAuth currently has no standalone enchanter flow.
+Anthropic Pro/Max OAuth currently has no standalone robit flow.
 
 To authenticate:
   1. Install Claude Code (https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)

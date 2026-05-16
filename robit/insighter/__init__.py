@@ -1,4 +1,4 @@
-"""robit.insighter — command-line interface for the enchanter-agent runtime.
+"""robit.insighter — command-line interface for the robit runtime.
 
 Entry point declared in pyproject.toml::
 
@@ -124,7 +124,7 @@ def _rule_to_dict(rule) -> dict[str, Any]:
 
 
 def cmd_version(args: argparse.Namespace) -> int:
-    _write(f"enchanter-agent {robit.__version__}\n")
+    _write(f"robit {robit.__version__}\n")
     return 0
 
 
@@ -462,7 +462,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="insighter",
-        description="enchanter-agent runtime inspection CLI",
+        description="robit runtime inspection CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.set_defaults(func=None)
@@ -470,7 +470,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="noun", metavar="<noun>")
 
     # ── version ──────────────────────────────────────────────────────────────
-    subparsers.add_parser("version", help="Print enchanter-agent version")
+    subparsers.add_parser("version", help="Print robit version")
 
     # ── status ────────────────────────────────────────────────────────────────
     p_status = subparsers.add_parser(
@@ -520,7 +520,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # ── serve ──────────────────────────────────────────────────────────────────
     p_serve = subparsers.add_parser(
         "serve",
-        help="Run enchanter as an MCP server (stdio/HTTP) or as a wire proxy",
+        help="Run robit as an MCP server (stdio/HTTP) or as a wire proxy",
     )
     serve_mode = p_serve.add_mutually_exclusive_group()
     serve_mode.add_argument(
@@ -538,7 +538,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="HOST:PORT",
         help=(
             "Listen on HOST:PORT and serve the wire-format proxy "
-            "(Anthropic/OpenAI/Gemini endpoints fronted by the enchanter "
+            "(Anthropic/OpenAI/Gemini endpoints fronted by the robit "
             "engine bus)."
         ),
     )
@@ -560,7 +560,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-conduct",
         action="store_true",
         help=(
-            "Disable enchanter-conduct injection on proxied requests. "
+            "Disable robit-conduct injection on proxied requests. "
             "Only used with --proxy."
         ),
     )

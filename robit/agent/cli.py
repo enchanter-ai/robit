@@ -12,7 +12,8 @@ Three modes:
 Mock LLM behaviour
 ------------------
 
-When the environment variable ``ENCHANTER_AGENT_MOCK`` is set to ``1``
+When the environment variable ``ROBIT_AGENT_MOCK`` is set to ``1``
+(or the legacy ``ENCHANTER_AGENT_MOCK``, with a deprecation warning)
 (or no real upstream credentials are configured), the loop's
 ``dispatch_fn`` is swapped for a deterministic stub: any user text that
 starts with the word ``echo`` produces a single ``tool_use`` call to the
@@ -109,7 +110,9 @@ async def mock_dispatch(req) -> Union[PipelineResult, VetoResult]:
 
 
 def _should_use_mock() -> bool:
-    if os.environ.get("ENCHANTER_AGENT_MOCK") == "1":
+    from robit._compat import get_env
+
+    if get_env("ROBIT_AGENT_MOCK") == "1":
         return True
     # No real provider credentials → mock so the CLI is offline-safe.
     return not any(
@@ -218,7 +221,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="robit",
         description=(
-            "Enchanter coding agent — REPL with enchanter enforcement baked in."
+            "Robit coding agent — REPL with robit enforcement baked in."
         ),
     )
     p.add_argument("--version", action="store_true", help="Print version and exit.")

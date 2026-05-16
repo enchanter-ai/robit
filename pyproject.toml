@@ -3,13 +3,13 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "enchanter-agent"
+name = "robit"
 version = "0.7.0"
 description = "Enforcement-first MCP-aware agent runtime. Port of the TypeScript MCP client architecture into Python with conduct injection and inference substrate."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "The Enchanter Authors" }]
+authors = [{ name = "The Robit Authors" }]
 keywords = ["mcp", "model-context-protocol", "ai-agent", "orchestrator", "security", "enforcement"]
 
 dependencies = [
@@ -28,7 +28,7 @@ dev = [
 # The inspector binary is `insighter` (the inspector-side CLI). The
 # inspector package lives at `robit.insighter`.
 insighter = "robit.insighter:main"
-# `robit` is the coding-agent CLI — Textual REPL with enchanter
+# `robit` is the coding-agent CLI — Textual REPL with robit
 # enforcement baked in. Wave 15.0 ships the foundation skeleton; Wave 15.1+
 # extend it.
 robit = "robit.agent.cli:main"

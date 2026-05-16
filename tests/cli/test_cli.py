@@ -40,7 +40,7 @@ def test_version_exit_code(capsys):
 def test_version_output_contains_version_string(capsys):
     main(["version"])
     out = capsys.readouterr().out
-    assert "enchanter-agent" in out
+    assert "robit" in out
     from robit import __version__
     assert __version__ in out
 
@@ -56,7 +56,7 @@ def test_no_args_prints_help(capsys):
     main([])
     # argparse help goes to stdout
     out = capsys.readouterr().out
-    assert "enchanter" in out.lower() or "usage" in out.lower()
+    assert "robit" in out.lower() or "usage" in out.lower()
 
 
 # ─── T03: engines list ────────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ def test_status_output_non_empty(capsys):
     main(["status"])
     out = capsys.readouterr().out
     assert len(out) > 10
-    assert "enchanter-agent" in out
+    assert "robit" in out
 
 
 # ─── T14: status --json ───────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ def test_inference_status_output(capsys):
 
 def test_inference_reconcile_empty_state_does_not_crash(capsys, tmp_path, monkeypatch):
     """Reconcile on empty state dir should exit 0 (no artifacts yet)."""
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     rc = main(["inference", "reconcile"])
     # Should not crash — either 0 or a graceful message.
     assert rc == 0

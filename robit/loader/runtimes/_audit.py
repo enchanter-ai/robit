@@ -21,8 +21,9 @@ Design notes:
   move on).
 * All failures are swallowed -- audit is best-effort.  A failure to record
   must never abort the caller.
-* fsync is opt-in via ``ENCHANTER_AUDIT_FSYNC=1`` because per-line fsync is
-  expensive on Windows.
+* fsync is opt-in via ``ROBIT_AUDIT_FSYNC=1`` (legacy ``ENCHANTER_AUDIT_FSYNC``
+  still honored via :mod:`robit._compat`) because per-line fsync is expensive
+  on Windows.
 """
 
 from __future__ import annotations
@@ -37,6 +38,8 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from robit._compat import get_env
 
 __all__ = ["record_rejection", "get_audit_path", "read_records"]
 
@@ -74,24 +77,27 @@ def _find_repo_root(start: Path) -> Path | None:
 
 
 def _platform_default_dir() -> Path:
-    """Platform-default audit directory when no env / repo marker is found."""
-    if sys.platform.startswith("win"):
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "enchanter" / "audit"
-        return Path.home() / "AppData" / "Roaming" / "enchanter" / "audit"
-    return Path.home() / ".enchanter" / "audit"
+    """Platform-default audit directory when no env / repo marker is found.
+
+    Routes through :func:`robit._compat.resolve_user_dir` so both the new
+    ``~/.robit`` path and the legacy ``~/.enchanter`` path are honored
+    consistently with the rest of the runtime.
+    """
+    from robit._compat import resolve_user_dir
+
+    return resolve_user_dir() / "audit"
 
 
 def _resolve_state_audit_dir() -> Path:
     """Resolve the audit directory using the documented precedence.
 
-    1. ``$ENCHANTER_STATE_DIR``  -> ``<state_dir>/audit``
+    1. ``$ROBIT_STATE_DIR`` (legacy ``$ENCHANTER_STATE_DIR``) -> ``<state_dir>/audit``
     2. ``<repo_root>/state/audit`` if a ``pyproject.toml`` is found upwards
        from CWD.
-    3. Platform default (``~/.enchanter/audit`` or ``%APPDATA%/enchanter/audit``).
+    3. Platform default (``~/.robit/audit`` or ``%APPDATA%/robit/audit``,
+       falling back to ``~/.enchanter/audit`` if only the legacy dir exists).
     """
-    env = os.environ.get("ENCHANTER_STATE_DIR")
+    env = get_env("ROBIT_STATE_DIR")
     if env:
         return Path(env) / "audit"
 
@@ -103,7 +109,7 @@ def _resolve_state_audit_dir() -> Path:
 
 
 def _fallback_dir() -> Path:
-    return Path(tempfile.gettempdir()) / "enchanter-audit"
+    return Path(tempfile.gettempdir()) / "robit-audit"
 
 
 def get_audit_path() -> Path:
@@ -195,7 +201,7 @@ def _build_record(
 # ---------------------------------------------------------------------------
 
 def _fsync_enabled() -> bool:
-    return os.environ.get("ENCHANTER_AUDIT_FSYNC") == "1"
+    return get_env("ROBIT_AUDIT_FSYNC") == "1"
 
 
 def _write_line_sync(path: Path, line: str) -> None:

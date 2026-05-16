@@ -426,7 +426,7 @@ async def test_passthrough_auth_anthropic_api_key_forwards_api_key_kwarg():
     req = _basic_req(
         model="anthropic/claude-3-5-sonnet-20241022",
         metadata={
-            "_enchanter_passthrough_auth": {
+            "_robit_passthrough_auth": {
                 "kind": "anthropic-api-key",
                 "value": "sk-ant-test-123",
             }
@@ -444,7 +444,7 @@ async def test_passthrough_auth_anthropic_api_key_forwards_api_key_kwarg():
     assert "extra_headers" not in kwargs
     # The internal sentinel must not leak into the LiteLLM metadata bag.
     assert "metadata" not in kwargs or (
-        "_enchanter_passthrough_auth" not in kwargs.get("metadata", {})
+        "_robit_passthrough_auth" not in kwargs.get("metadata", {})
     )
 
 
@@ -453,7 +453,7 @@ async def test_passthrough_auth_openai_bearer_forwards_api_key_kwarg():
     req = _basic_req(
         model="gpt-4o-mini",
         metadata={
-            "_enchanter_passthrough_auth": {
+            "_robit_passthrough_auth": {
                 "kind": "openai-bearer",
                 "value": "sk-openai-test-xyz",
             }
@@ -476,7 +476,7 @@ async def test_passthrough_auth_gemini_api_key_forwards_api_key_kwarg():
     req = _basic_req(
         model="gemini/gemini-1.5-pro",
         metadata={
-            "_enchanter_passthrough_auth": {
+            "_robit_passthrough_auth": {
                 "kind": "gemini-api-key",
                 "value": "AIza-test-gemini-key",
             }
@@ -504,7 +504,7 @@ async def test_passthrough_auth_anthropic_oauth_sets_extra_headers_bearer():
     req = _basic_req(
         model="anthropic/claude-3-5-sonnet-20241022",
         metadata={
-            "_enchanter_passthrough_auth": {
+            "_robit_passthrough_auth": {
                 "kind": "anthropic-oauth",
                 "value": "sk-ant-oat-XXXX",
             }
@@ -548,7 +548,7 @@ def _chatgpt_jwt_req(**overrides):
     return _basic_req(
         model="gpt-5-codex",
         metadata={
-            "_enchanter_passthrough_auth": {
+            "_robit_passthrough_auth": {
                 "kind": "chatgpt-jwt",
                 "value": "eyJtest.payload.signature",
                 "account_id": "acct_xyz",
@@ -612,7 +612,7 @@ async def test_chatgpt_jwt_request_uses_correct_url_and_headers():
     # them through .header_items() / .get_header().
     assert request_obj.get_header("Authorization") == "Bearer eyJtest.payload.signature"
     assert request_obj.get_header("Chatgpt-account-id") == "acct_xyz"
-    assert "enchanter-agent" in (request_obj.get_header("User-agent") or "")
+    assert "robit" in (request_obj.get_header("User-agent") or "")
     # Body is the Responses-API shape.
     body = json.loads(request_obj.data.decode("utf-8"))
     assert body["model"] == "gpt-5-codex"
@@ -698,7 +698,7 @@ async def test_chatgpt_jwt_account_id_missing_still_sends_request():
     req = _basic_req(
         model="gpt-5-codex",
         metadata={
-            "_enchanter_passthrough_auth": {
+            "_robit_passthrough_auth": {
                 "kind": "chatgpt-jwt",
                 "value": "eyJtest.payload.sig",
                 "account_id": None,

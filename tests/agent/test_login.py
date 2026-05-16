@@ -1,7 +1,7 @@
 """Tests for robit.agent.login — CLI auth subcommands (Wave 17.1).
 
 The PKCE flow is mocked at the `robit.llm._chatgpt_auth.run_pkce_flow`
-seam so no real browser opens. `ENCHANTER_HOME` is redirected to `tmp_path`
+seam so no real browser opens. `ROBIT_HOME` is redirected to `tmp_path`
 by the autouse `isolated_enchanter_home` fixture in conftest.py.
 """
 
@@ -64,7 +64,7 @@ def test_login_chatgpt_happy_path(tmp_path, monkeypatch, capsys):
     assert "Opening browser" in out
     assert "acct_happy" in out
 
-    # Token file landed at $ENCHANTER_HOME/chatgpt-token.json.
+    # Token file landed at $ROBIT_HOME/chatgpt-token.json.
     cache = tmp_path / "chatgpt-token.json"
     assert cache.exists()
     data = json.loads(cache.read_text(encoding="utf-8"))

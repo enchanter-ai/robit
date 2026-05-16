@@ -1,6 +1,6 @@
-"""enchanter/protocol/jsonrpc.py — JSON-RPC 2.0 wire types and codec.
+"""robit/protocol/jsonrpc.py — JSON-RPC 2.0 wire types and codec.
 
-Port of `client/enchanter/src/protocol/jsonrpc.ts`.
+Port of `client/enchanter/src/protocol/jsonrpc.ts` (sibling enchanter repo).
 Stdlib only: json, dataclasses, typing, enum.
 
 Counter (same as TS comment): a typed RPC framework (gRPC, tRPC) would give
@@ -16,11 +16,11 @@ from typing import Any, Union
 
 
 # ---------------------------------------------------------------------------
-# Standard + enchanter custom error codes
+# Standard + robit custom error codes
 # ---------------------------------------------------------------------------
 
 class ErrorCode(IntEnum):
-    """Standard JSON-RPC 2.0 error codes + enchanter custom range (-32099..-32000)."""
+    """Standard JSON-RPC 2.0 error codes + robit custom range (-32099..-32000)."""
 
     PARSE_ERROR = -32700
     INVALID_REQUEST = -32600
@@ -28,7 +28,7 @@ class ErrorCode(IntEnum):
     INVALID_PARAMS = -32602
     INTERNAL_ERROR = -32603
 
-    # enchanter custom (-32099..-32000 reserved range)
+    # robit custom (-32099..-32000 reserved range)
     SECURITY_VETO = -32099
     VENDOR_UNAVAILABLE = -32098
     SAMPLING_BOUND_EXCEEDED = -32097

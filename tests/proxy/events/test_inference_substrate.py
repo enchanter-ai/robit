@@ -79,8 +79,8 @@ def gate_on(tmp_path, monkeypatch):
     """
     state_dir = tmp_path / "inference"
     state_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("ENCHANTER_INFERENCE_ENABLED", "1")
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(state_dir))
+    monkeypatch.setenv("ROBIT_INFERENCE_ENABLED", "1")
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(state_dir))
     # Reset the one-shot warning sentinel so each test starts clean.
     monkeypatch.setattr(is_module, "_state_warning_emitted", False, raising=False)
     return state_dir
@@ -88,7 +88,7 @@ def gate_on(tmp_path, monkeypatch):
 
 @pytest.fixture
 def gate_off(monkeypatch):
-    monkeypatch.delenv("ENCHANTER_INFERENCE_ENABLED", raising=False)
+    monkeypatch.delenv("ROBIT_INFERENCE_ENABLED", raising=False)
     monkeypatch.setattr(is_module, "_state_warning_emitted", False, raising=False)
 
 
@@ -263,8 +263,8 @@ async def test_state_dir_missing_logs_warning_and_no_ops(
 ):
     # Gate is ON but state dir + its parent don't exist.
     missing = tmp_path / "does" / "not" / "exist" / "inference"
-    monkeypatch.setenv("ENCHANTER_INFERENCE_ENABLED", "1")
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(missing))
+    monkeypatch.setenv("ROBIT_INFERENCE_ENABLED", "1")
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(missing))
     monkeypatch.setattr(is_module, "_state_warning_emitted", False, raising=False)
 
     ctx = _ctx()

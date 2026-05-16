@@ -1,4 +1,4 @@
-# Enchanter Agent — Build Roadmap
+# Robit — Build Roadmap
 
 Managed-split execution: each row is a self-contained subagent dispatch.
 Waves run in parallel within a wave; serial across waves so contract issues

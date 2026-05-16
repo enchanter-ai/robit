@@ -267,7 +267,7 @@ class ProxyServer:
             await self._send_simple(writer, 404, "Not Found", b"")
             return
 
-        # 2b. Fast-path bypass — only fires if ENCHANTER_ALLOW_FASTPATH_BYPASS=1
+        # 2b. Fast-path bypass — only fires if ROBIT_ALLOW_FASTPATH_BYPASS=1
         # AND the caller's key SHA-256 is in <state_dir>/fastpath-allowlist.json.
         # SKIPS conduct injection + lifecycle gates. Audit-logged to JSONL.
         fp_config = fastpath.load_config()
@@ -338,7 +338,7 @@ class ProxyServer:
                     canonical_req,
                     metadata={
                         **canonical_req.metadata,
-                        "_enchanter_passthrough_auth": inbound_auth,
+                        "_robit_passthrough_auth": inbound_auth,
                     },
                 )
 
@@ -804,7 +804,7 @@ async def serve_proxy(
         passthrough_auth=passthrough_auth,
     )
     bound_host, bound_port = await server.start()
-    logger.info("enchanter proxy listening on %s:%d", bound_host, bound_port)
+    logger.info("robit proxy listening on %s:%d", bound_host, bound_port)
     try:
         await server.serve_forever()
     except (KeyboardInterrupt, asyncio.CancelledError):

@@ -8,8 +8,10 @@ Lookup precedence (highest wins, never overrides shell env unless
 ``override=True``):
 
 1. ``<cwd>/.env``
-2. ``<user_dir>/.env``  (``ENCHANTER_HOME`` env var if set, else
-   ``%APPDATA%/enchanter`` on Windows or ``~/.enchanter`` on POSIX)
+2. ``<user_dir>/.env``  (``ROBIT_HOME`` env var if set; legacy
+   ``ENCHANTER_HOME`` still honored with a deprecation warning. Otherwise
+   ``%APPDATA%/robit`` on Windows or ``~/.robit`` on POSIX, falling back
+   to the legacy ``enchanter`` directory if only that exists.)
 
 Within a single file, last-key-wins on duplicate keys.
 
@@ -27,6 +29,8 @@ import os
 import re
 from pathlib import Path
 
+from robit._compat import resolve_user_dir
+
 _LOG = logging.getLogger(__name__)
 
 # A valid identifier-like key: letter/underscore then letters/digits/underscores.
@@ -36,19 +40,11 @@ _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 def _default_user_dir() -> Path:
     """Resolve the user-level .env directory.
 
-    Honors ``ENCHANTER_HOME`` first. Else: ``%APPDATA%/enchanter`` on
-    Windows (falling back to ``~/.enchanter`` if APPDATA is unset), or
-    ``~/.enchanter`` on POSIX.
+    Delegates to :func:`robit._compat.resolve_user_dir` so the env-var
+    fallback (``ROBIT_HOME`` → legacy ``ENCHANTER_HOME``) and directory
+    fallback (``~/.robit`` → legacy ``~/.enchanter``) stay in one place.
     """
-    override = os.environ.get("ENCHANTER_HOME")
-    if override:
-        return Path(override)
-    if os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "enchanter"
-        return Path.home() / ".enchanter"
-    return Path.home() / ".enchanter"
+    return resolve_user_dir()
 
 
 def _unescape_double_quoted(s: str) -> str:

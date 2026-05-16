@@ -259,8 +259,8 @@ async def case_fastpath_bypass(state_dir: Path, port_holder: list[int]) -> None:
     )
 
     # Enable env gate + redirect state dir
-    os.environ["ENCHANTER_ALLOW_FASTPATH_BYPASS"] = "1"
-    os.environ["ENCHANTER_STATE_DIR"] = str(state_dir)
+    os.environ["ROBIT_ALLOW_FASTPATH_BYPASS"] = "1"
+    os.environ["ROBIT_STATE_DIR"] = str(state_dir)
     fp_mod.load_config(force_reload=True)
 
     # Mock the passthrough's upstream HTTP call (don't reach real Anthropic)
@@ -305,7 +305,7 @@ async def case_fastpath_bypass(state_dir: Path, port_holder: list[int]) -> None:
         assert record["kind"] == "proxy.fastpath.bypass"
 
     # Clean up env
-    os.environ.pop("ENCHANTER_ALLOW_FASTPATH_BYPASS", None)
+    os.environ.pop("ROBIT_ALLOW_FASTPATH_BYPASS", None)
     fp_mod.load_config(force_reload=True)
 
 
@@ -315,8 +315,8 @@ async def case_inference_artifact_emit(host: str, port: int, state_dir: Path,
     when the gate is on. Requires the proxy to be running BEFORE the gate flips."""
     print("\n-- Case 8: inference-substrate artifact emission --")
     import os
-    os.environ["ENCHANTER_INFERENCE_ENABLED"] = "1"
-    os.environ["ENCHANTER_INFERENCE_STATE"] = str(state_dir / "inference")
+    os.environ["ROBIT_INFERENCE_ENABLED"] = "1"
+    os.environ["ROBIT_INFERENCE_STATE"] = str(state_dir / "inference")
     artifacts_file = state_dir / "inference" / "artifacts.jsonl"
     artifacts_before = (
         len(artifacts_file.read_text().splitlines())
@@ -344,8 +344,8 @@ async def case_inference_artifact_emit(host: str, port: int, state_dir: Path,
         print(f"  last artifact code: {last.get('code')}")
         print(f"  last artifact category: {last.get('category')}")
 
-    os.environ.pop("ENCHANTER_INFERENCE_ENABLED", None)
-    os.environ.pop("ENCHANTER_INFERENCE_STATE", None)
+    os.environ.pop("ROBIT_INFERENCE_ENABLED", None)
+    os.environ.pop("ROBIT_INFERENCE_STATE", None)
     # Note: artifact emit is best-effort; don't hard-fail the smoke on it
     # since the engine may swallow errors per its honest-numbers contract.
 

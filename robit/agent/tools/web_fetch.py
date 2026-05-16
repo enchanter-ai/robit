@@ -57,7 +57,7 @@ _DEFAULT_MAX_BYTES = 512 * 1024              # 512 KB
 _OUTPUT_CAP_BYTES = 32 * 1024                # 32 KB extracted text
 _CHUNK_SIZE = 8 * 1024                       # 8 KB streamed reads
 _MAX_REDIRECTS = 5
-_USER_AGENT = "enchanter-agent/0.5 (+https://github.com/enchanter-ai/agent)"
+_USER_AGENT = "robit/0.7 (+https://github.com/enchanter-ai/robit)"
 
 # The literal AWS/GCP/Azure metadata IP is also link-local, but we call it out
 # by name so the error message tells the LLM exactly what was blocked.

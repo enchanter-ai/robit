@@ -74,7 +74,7 @@ def test_adapter_metadata(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_post_session_flushes_buffer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     engine = _make_engine(tmp_path)
     ctx = create_request_context()
 
@@ -109,7 +109,7 @@ async def test_post_session_flushes_buffer(tmp_path: Path, monkeypatch: pytest.M
 
 @pytest.mark.asyncio
 async def test_cross_session_reconcile_and_render(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
 
     # Pre-populate the artifact log so reconcile has something to work with.
     from robit.inference.engine import emit_unconditional
@@ -148,7 +148,7 @@ async def test_cross_session_reconcile_and_render(tmp_path: Path, monkeypatch: p
 
 @pytest.mark.asyncio
 async def test_warn_events_captured_and_emitted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     engine = _make_engine(tmp_path)
     ctx = create_request_context()
 
@@ -184,7 +184,7 @@ async def test_warn_events_captured_and_emitted(tmp_path: Path, monkeypatch: pyt
 
 @pytest.mark.asyncio
 async def test_empty_session_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("ENCHANTER_INFERENCE_STATE", str(tmp_path))
+    monkeypatch.setenv("ROBIT_INFERENCE_STATE", str(tmp_path))
     engine = _make_engine(tmp_path)
     ctx = create_request_context()
 

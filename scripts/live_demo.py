@@ -86,10 +86,10 @@ async def main() -> int:
     print(f"Wrote fast-path allowlist with 1 key for model claude-3-5-sonnet-20241022")
 
     # Env: enable fast-path + inference substrate
-    os.environ["ENCHANTER_STATE_DIR"] = str(tmp)
-    os.environ["ENCHANTER_ALLOW_FASTPATH_BYPASS"] = "1"
-    os.environ["ENCHANTER_INFERENCE_ENABLED"] = "1"
-    os.environ["ENCHANTER_INFERENCE_STATE"] = str(tmp / "inference")
+    os.environ["ROBIT_STATE_DIR"] = str(tmp)
+    os.environ["ROBIT_ALLOW_FASTPATH_BYPASS"] = "1"
+    os.environ["ROBIT_INFERENCE_ENABLED"] = "1"
+    os.environ["ROBIT_INFERENCE_STATE"] = str(tmp / "inference")
 
     from robit.proxy import ProxyServer, fastpath
     fastpath.load_config(force_reload=True)

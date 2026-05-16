@@ -25,11 +25,11 @@ from .tools import ToolRegistry, to_mcp_call_result
 
 logger = logging.getLogger(__name__)
 
-from robit import __version__ as _ENCHANTER_VERSION
+from robit import __version__ as _ROBIT_VERSION
 
 SERVER_INFO = {
-    "name": "enchanter-mcp-server",
-    "version": _ENCHANTER_VERSION,
+    "name": "robit-mcp-server",
+    "version": _ROBIT_VERSION,
 }
 PROTOCOL_VERSION = "2025-06-18"
 

@@ -39,15 +39,15 @@ LOOPBACK_PORT = 1455
 
 
 def _default_token_path() -> Path:
-    """Return the default token cache path, honoring ENCHANTER_HOME + APPDATA."""
-    override = os.environ.get("ENCHANTER_HOME")
-    if override:
-        return Path(override) / "chatgpt-token.json"
-    if os.name == "nt":
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "enchanter" / "chatgpt-token.json"
-    return Path.home() / ".enchanter" / "chatgpt-token.json"
+    """Return the default token cache path.
+
+    Routes through :func:`robit._compat.resolve_user_dir` so both ``ROBIT_HOME``
+    (and its legacy ``ENCHANTER_HOME`` alias) and the ``~/.robit`` / legacy
+    ``~/.enchanter`` directory fallback are honored.
+    """
+    from robit._compat import resolve_user_dir
+
+    return resolve_user_dir() / "chatgpt-token.json"
 
 
 TOKEN_PATH = _default_token_path()
@@ -248,7 +248,7 @@ class _CallbackHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
         self.wfile.write(
-            b"<html><body><h2>enchanter: ChatGPT auth complete</h2>"
+            b"<html><body><h2>robit: ChatGPT auth complete</h2>"
             b"<p>You can close this tab.</p></body></html>"
         )
 

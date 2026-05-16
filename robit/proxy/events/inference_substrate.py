@@ -24,8 +24,10 @@ Bridges the proxy lifecycle to the cross-session learning substrate
 Opt-in gate
 -----------
 
-The underlying engine uses :envvar:`ENCHANTER_INFERENCE_ENABLED` (see
-``enchanter/inference/engine.py``).  When unset or ``!= "1"`` BOTH phases
+The underlying engine uses :envvar:`ROBIT_INFERENCE_ENABLED` (legacy
+:envvar:`ENCHANTER_INFERENCE_ENABLED` still honored via
+:mod:`robit._compat`; see ``robit/inference/engine.py``).  When unset or
+``!= "1"`` BOTH phases
 are no-ops.  This matches the substrate's "default off during rollout"
 contract — see ``shared/conduct/inference-substrate.md`` in the wixie
 sibling repo for the original semantics.
@@ -44,7 +46,8 @@ State-dir safety
 
 If the substrate's state directory is missing on a fresh checkout, the
 emitter logs a single WARNING and degrades to no-op for the rest of the
-process.  Setting :envvar:`ENCHANTER_INFERENCE_ENABLED=1` without
+process.  Setting :envvar:`ROBIT_INFERENCE_ENABLED=1` (or the legacy
+:envvar:`ENCHANTER_INFERENCE_ENABLED=1`) without
 initialising the state directory is a user-side configuration error;
 papering over it would hide that from operators.
 """
@@ -104,7 +107,7 @@ def _state_dir_ok() -> bool:
         _log.warning(
             "inference-substrate state dir missing (%s) — emitter degraded "
             "to no-op for this process.  Run the substrate init or unset "
-            "ENCHANTER_INFERENCE_ENABLED to silence this warning.",
+            "ROBIT_INFERENCE_ENABLED to silence this warning.",
             sd,
         )
         _state_warning_emitted = True

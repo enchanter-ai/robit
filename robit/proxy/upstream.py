@@ -69,7 +69,7 @@ from .canonical import (
 # ``chatgpt.com/backend-api/codex`` base URL has no public override and
 # LiteLLM has no provider entry for it.
 CHATGPT_INTERNAL_URL = "https://chatgpt.com/backend-api/codex/responses"
-CHATGPT_INTERNAL_USER_AGENT = "enchanter-agent/0.7 (proxy-chatgpt)"
+CHATGPT_INTERNAL_USER_AGENT = "robit/0.7 (proxy-chatgpt)"
 
 # Silently drop kwargs the upstream provider doesn't understand.
 litellm.drop_params = True
@@ -176,7 +176,7 @@ def _passthrough_auth_dict(req: CanonicalRequest) -> dict[str, Any] | None:
     """Return the inbound-auth blob from request metadata, or None."""
     if not req.metadata:
         return None
-    auth = req.metadata.get("_enchanter_passthrough_auth")
+    auth = req.metadata.get("_robit_passthrough_auth")
     if isinstance(auth, dict):
         return auth
     return None
@@ -418,7 +418,7 @@ def _safe_error_snippet(exc: urllib.error.HTTPError) -> str:
 def _passthrough_auth_kwargs(req: CanonicalRequest) -> dict[str, Any]:
     """Translate the server's stashed inbound auth into LiteLLM kwargs.
 
-    Reads ``req.metadata["_enchanter_passthrough_auth"]`` (set by
+    Reads ``req.metadata["_robit_passthrough_auth"]`` (set by
     :mod:`robit.proxy.server` when ``passthrough_auth=True``) and
     returns kwargs to merge into the LiteLLM call: ``api_key`` for
     API-key-style auth, plus ``extra_headers`` for Anthropic OAuth
@@ -436,7 +436,7 @@ def _passthrough_auth_kwargs(req: CanonicalRequest) -> dict[str, Any]:
     """
     if not req.metadata:
         return {}
-    auth = req.metadata.get("_enchanter_passthrough_auth")
+    auth = req.metadata.get("_robit_passthrough_auth")
     if not isinstance(auth, dict):
         return {}
     kind = auth.get("kind")
@@ -486,7 +486,7 @@ def _build_litellm_kwargs(req: CanonicalRequest, *, stream: bool) -> dict[str, A
         safe_meta = {
             k: v
             for k, v in req.metadata.items()
-            if k != "_enchanter_passthrough_auth"
+            if k != "_robit_passthrough_auth"
         }
         if safe_meta:
             kwargs["metadata"] = safe_meta
