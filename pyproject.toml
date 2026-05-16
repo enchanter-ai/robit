@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "robit"
-version = "0.7.0"
+version = "0.8.0"
 description = "Enforcement-first MCP-aware agent runtime. Port of the TypeScript MCP client architecture into Python with conduct injection and inference substrate."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,12 +25,9 @@ dev = [
 ]
 
 [project.scripts]
-# The inspector binary is `insighter` (the inspector-side CLI). The
-# inspector package lives at `robit.insighter`.
-insighter = "robit.insighter:main"
 # `robit` is the coding-agent CLI — Textual REPL with robit
-# enforcement baked in. Wave 15.0 ships the foundation skeleton; Wave 15.1+
-# extend it.
+# enforcement baked in. Wave 20 stripped the package down to just this
+# binary; the inspector/proxy/MCP-server roles moved to enchanter-ai/beholder.
 robit = "robit.agent.cli:main"
 
 [tool.setuptools.packages.find]

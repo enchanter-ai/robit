@@ -1,30 +1,22 @@
-"""robit.proxy — wire-format-agnostic LLM proxy layer.
+"""robit.proxy — canonical request/response substrate and pipeline.
 
-Wave layout:
+Wave 20 trimmed this package down to the substrate the coding agent's
+runtime needs: canonical types, conduct injection, the pipeline that wraps
+each LLM turn with engines, the upstream LiteLLM bridge, and the streaming
+helpers. The HTTP proxy server, wire-format adapters, and fastpath bypass
+were moved out to ``enchanter-ai/beholder`` (the TypeScript MCP-client SDK
++ Rust cockpit) and deleted here.
 
-* Wave 0: :mod:`.canonical` shapes, :mod:`.upstream` LiteLLM bridge,
-  :mod:`.conduct` injection helper.
-* Wave 1: per-provider adapters (Anthropic, OpenAI, Gemini) that parse
-  incoming wire bodies into :class:`.canonical.CanonicalRequest` and render
-  :class:`.canonical.CanonicalResponse` / chunk streams back out.
-* Wave 2: the HTTP server (:mod:`.server`), routing, and lifecycle wiring;
-  the pipeline (:mod:`.pipeline`) that runs canonical requests through the
-  engine bus + upstream call.
-
-Public re-exports below cover the surfaces external callers (the CLI, tests,
-and downstream packages) need.  Pipeline names are re-exported lazily so
-that importing this package does not blow up if the pipeline module hasn't
-landed yet (parallel-build race tolerance).
+Public re-exports cover the surfaces the agent CLI and tests pull in.
+Pipeline names are re-exported lazily to keep import-time cycles tame.
 """
 
 from __future__ import annotations
 
 from .canonical import CanonicalRequest, CanonicalResponse
-from .server import ProxyServer, serve_proxy
 
-# Pipeline types are re-exported best-effort.  In parallel-build mode the
-# pipeline module may not exist yet — importers that need it should fall
-# back to ``from robit.proxy import pipeline`` once it lands.
+# Pipeline types are re-exported best-effort.  Importers that need them
+# can also do ``from robit.proxy import pipeline`` directly.
 try:  # pragma: no cover — re-export-only branch
     from .pipeline import PipelineOptions, VetoResult  # type: ignore[import-not-found]
 except Exception:  # noqa: BLE001
@@ -35,7 +27,5 @@ __all__ = [
     "CanonicalRequest",
     "CanonicalResponse",
     "PipelineOptions",
-    "ProxyServer",
     "VetoResult",
-    "serve_proxy",
 ]

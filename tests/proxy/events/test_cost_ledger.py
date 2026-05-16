@@ -396,52 +396,8 @@ async def _post_raw(
             pass
 
 
-@pytest.mark.asyncio
-async def test_proxy_server_surfaces_x_enchanter_cost_cents_header():
-    from robit.proxy import upstream
-    from robit.proxy.server import ProxyServer
-
-    server = ProxyServer(host="127.0.0.1", port=0)
-    host, port = await server.start()
-    task = asyncio.create_task(server.serve_forever())
-    await asyncio.sleep(0)
-
-    try:
-        body = json.dumps(
-            {
-                "model": "claude-3-5-sonnet-20241022",
-                "max_tokens": 64,
-                "messages": [{"role": "user", "content": "hi"}],
-            }
-        ).encode("utf-8")
-        with patch.object(
-            upstream.litellm,
-            "acompletion",
-            new=AsyncMock(
-                return_value=_make_litellm_completion(
-                    text="hello back",
-                    model="claude-3-5-sonnet-20241022",
-                    prompt_tokens=10_000,
-                    completion_tokens=5_000,
-                )
-            ),
-        ):
-            status, headers, _resp_body = await _post_raw(
-                host, port, "/v1/messages", body
-            )
-        assert status == 200
-        assert "x-enchanter-cost-cents" in headers, (
-            f"missing cost header; got: {sorted(headers.keys())}"
-        )
-        # Must parse to a positive int.
-        cents = int(headers["x-enchanter-cost-cents"])
-        assert cents > 0
-        # Sanity: same math as above → 11 cents.
-        assert cents == 11
-    finally:
-        await server.close()
-        task.cancel()
-        try:
-            await task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
-            pass
+# Note: the end-to-end `test_proxy_server_surfaces_x_enchanter_cost_cents_header`
+# test was removed in Wave 20 along with `robit.proxy.server.ProxyServer`. The
+# proxy HTTP server is no longer a robit feature; the cost-ledger emitter is
+# still exercised by the unit tests above. Header surfacing is now the
+# beholder repo's concern (TS MCP client cockpit).

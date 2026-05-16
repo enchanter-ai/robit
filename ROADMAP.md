@@ -239,3 +239,27 @@ Managed-split across 4 parallel agents. 1073 → 1119 tests (+46).
 | 17.3 — Auth docs | 1 (parallel-safe, docs only) | `docs/auth.md` (1929 words, 53 source citations). Env-var matrix, `.env` conventions, three pass-through patterns for the proxy, host-agent base-URL examples, honest limitations. | 0 |
 | 17.4 — Ship | me | Bump 0.6.0 → 0.7.0, smoke, commit, push | n/a |
 
+
+## Wave 20 — Strip robit down to the coding agent (0.8.0) ✅
+
+`enchanter-ai/beholder` is the canonical observability product (TypeScript MCP-client SDK + Rust cockpit, already live). Robit is just the Python coding agent. Removed everything inspection/proxy/MCP-server-shaped.
+
+| Removed | What it did |
+|---|---|
+| `robit/insighter/` (entire package) | The status / engines list / conduct list / inference / tier / serve CLI |
+| `robit/mcp_server/` (entire package) | MCP server mode (engines exposed as MCP tools over stdio/HTTP) |
+| `robit/proxy/server.py` | HTTP proxy server (Anthropic/OpenAI/Gemini/Codex endpoint listener) |
+| `robit/proxy/adapters/` | Wire-format adapters (anthropic, openai, gemini, codex) for the proxy's inbound side |
+| `robit/proxy/fastpath.py` | Env-gated key-allowlisted byte pass-through |
+| `robit/registry/` | Namespace registry + trust-pin (only used by mcp_server) |
+| `scripts/smoke_proxy.py`, `scripts/live_demo.py` | Proxy-only smoke/demo |
+| `tests/cli/`, `tests/mcp_server/`, `tests/registry/`, proxy adapter+server+fastpath tests | Tests for the removed surfaces |
+| `insighter` binary entry point in `pyproject.toml` | — |
+
+What stayed (substrate the coding agent uses internally):
+- `robit/agent/` — REPL, tools, sessions, login, slash commands
+- `robit/proxy/{canonical,pipeline,upstream,conduct,events,streaming}.py` — pipeline.run wraps every LLM turn with conduct injection + lifecycle + post-response gates
+- `robit/engines/` (14 engines), `robit/conduct/`, `robit/core/`, `robit/composer/`, `robit/loader/`, `robit/runtime/`, `robit/inference/`, `robit/llm/`, `robit/protocol/`, `robit/transport/`, `robit/_env.py`, `robit/_compat.py`
+
+Tests: 1130 → 898 (–232 from the deletion of mcp_server / proxy-server / adapters / fastpath / registry / insighter test suites). The 898 cover the coding agent's full active surface.
+
