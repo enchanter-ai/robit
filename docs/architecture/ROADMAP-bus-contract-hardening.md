@@ -152,15 +152,33 @@ Originally logged as out-of-scope; closed in a third wave of three parallel work
   + an injectable `llm_call` seam, **default OFF** — the deterministic LCS+HMM path remains the
   default and all existing tests pass unchanged.
 
-## Follow-ups (genuinely deferred)
+## Follow-ups (closed — Wave 4 production wiring)
 
-- Wire `route_chain()` into the proxy callers + streaming fallback (`stream_upstream`).
-- Drop the `score`→`cents` bus-payload mirror once the pipeline recorder whitelists `cents`.
-- Agent-engine production enablement: live `call_upstream` wiring, cost-ledger accounting for
-  the agent call, durable `state/agent-verdicts.jsonl` audit sink, and end-to-end overlay
-  delivery through the orchestrator (§8's full audit/cost requirements).
+All four deferred items landed in `w4/production-wiring`, additively and with no regression.
+
+- **F1 — `route_chain()` / fallback in the live path.** The run path now derives a
+  registry-backed chain (`resolve_fallback_chain`) and passes it to `call_upstream`;
+  `stream_upstream` gained PRE-STREAM fallback (fall through on a retryable first-connection /
+  first-chunk error before any chunk is yielded). Mid-stream fallback is documented as
+  impossible — once the first chunk ships, a retryable error propagates. The request carries no
+  semantic task-class and the registry only maps task-class→models (no reverse), so a per-request
+  TierRouter was intentionally NOT wired; the registry-sibling chain is the correct minimal
+  activation (a registry-unknown model collapses to the legacy single-model no-op).
+- **F2 — `score`→`cents` mirror dropped.** `_BusRecorder._summarise_payload` whitelists `cents`;
+  the cost-ledger emitter publishes `cents` directly and the `score` smuggle is removed entirely
+  (`score` kept in the whitelist as a harmless no-op slot for a future scoring emitter).
+- **F3 — Agent-engine production enablement (still default-OFF).** `RequestContext.prompt_overlay`
+  delivered end-to-end through `OrchestratorConfig`/`_context_from_event` (no `on_phase` signature
+  change); real `llm_call` defaults to a `call_upstream`-backed call routed via
+  `route_chain(<AgentSpec.tier>)` when the flag is on and no seam is injected (tests still inject a
+  mock — never hits the network); durable, content-free `state/agent-verdicts.jsonl` audit sink.
+- **F4 — Pricing parity sanity bound.** A new test bounds every registry price to a plausible
+  range and asserts input ≤ output for known models, catching a jointly-wrong value the
+  divergence-only parity test would miss.
 
 ## Final tally
 
-898 (baseline) → 906 (Wave 1) → 939 (Wave 2) → **985 passed, 8 skipped** (Wave 3). +87 tests,
-0 regressions. All nine original gaps (G1–G9) plus the four deferred audit items closed.
+898 (baseline) → 906 (Wave 1) → 939 (Wave 2) → 985 (Wave 3) →
+**999 passed, 8 skipped** (Wave 4 production wiring, F1–F4). +101 tests, 0 regressions. All nine
+original gaps (G1–G9), the four deferred audit items, and the four production-wiring follow-ups
+(F1–F4) closed.

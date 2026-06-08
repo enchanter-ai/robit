@@ -263,6 +263,46 @@ def _normalise_chain(
     return tuple(chain)
 
 
+def resolve_fallback_chain(model: str) -> tuple[str, ...]:
+    """Derive a registry-backed fallback chain for a concrete *model* id (F1).
+
+    The proxy run-path knows only a concrete model id (e.g.
+    ``"claude-opus-4-6"``) — it carries no semantic task-class, so the
+    :class:`~robit.runtime.tier_router.TierRouter` (which maps *task-class →
+    models*, not *model → task-class*) cannot be consulted without a reverse
+    mapping the request does not provide. See the module/pipeline notes on why
+    we do not wire a TierRouter into the per-request path.
+
+    Instead we build a *real* chain from the models registry: the primary model
+    followed by its same-family siblings (latest-first, de-duplicated, primary
+    first). These are genuine alternates — a Claude-Opus request falls through
+    to other Claude 4.x members on a retryable upstream error.
+
+    When *model* is **not** in the registry (e.g. test fixtures, or a provider
+    id the registry does not track), this returns the single-element chain
+    ``(model,)`` — which :func:`call_upstream` / :func:`stream_upstream` treat
+    as a byte-for-byte no-op equivalent of the legacy single-model path. We do
+    NOT fabricate alternates we cannot stand behind.
+
+    Best-effort: any registry-load/lookup failure also degrades to ``(model,)``
+    so a registry problem never breaks the dispatch path.
+    """
+    try:
+        from robit.runtime.models_registry import ModelsRegistry
+
+        registry = ModelsRegistry.load()
+        entry = registry.model(model)  # raises if unknown
+        members = registry.family(entry.family)
+    except Exception:  # noqa: BLE001 — degrade to single-model no-op chain.
+        return (model,)
+
+    siblings = sorted(
+        (m.model_id for m in members), reverse=True
+    )  # latest-first
+    ordered = [model] + [m for m in siblings if m != model]
+    return _normalise_chain(model, ordered)
+
+
 def _is_retryable_upstream_error(err: UpstreamError) -> bool:
     """Decide whether *err* warrants falling through to the next model.
 
@@ -293,7 +333,12 @@ def _is_retryable_upstream_error(err: UpstreamError) -> bool:
     return False
 
 
-async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk]:
+async def stream_upstream(
+    req: CanonicalRequest,
+    models: Sequence[str] | None = None,
+    *,
+    backoff_s: float = _DEFAULT_FALLBACK_BACKOFF_S,
+) -> AsyncIterator[CanonicalChunk]:
     """Run a streaming completion and yield canonical events.
 
     LiteLLM yields OpenAI-shaped chunks::
@@ -305,6 +350,24 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
     ``content_block_stop`` → ``message_stop``) so downstream adapters can
     render down to any provider's chunk format without information loss.
 
+    Pre-stream fallback (F1)
+    ------------------------
+    *models* is the same ordered fallback chain :func:`call_upstream` accepts.
+    Fallback for streaming is **pre-stream only**: we open the upstream
+    connection and pull the *first* chunk before yielding anything. If opening
+    the connection OR pulling that first chunk fails with a **retryable**
+    upstream error (see :func:`_is_retryable_upstream_error`), we fall through
+    to the next model after a short backoff and retry — all *before* a single
+    canonical chunk has reached the caller.
+
+    **Hard boundary:** once the first chunk has been yielded downstream, the
+    response is committed to that model. A failure mid-stream (after the first
+    yielded chunk) CANNOT fall through to another model — doing so would
+    duplicate or interleave content the caller has already begun rendering. A
+    mid-stream retryable error is therefore wrapped and raised like any other
+    upstream error; the caller's stream simply ends. This boundary is exercised
+    by ``tests/test_production_wiring.py``.
+
     ChatGPT-login streaming is **not** implemented in this wave — see
     :func:`_stream_chatgpt_internal`.
     """
@@ -314,6 +377,87 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
             yield chunk
         return
 
+    chain = _normalise_chain(req.model, models)
+
+    # --- PRE-STREAM fallback loop ---------------------------------------
+    # Establish the stream + buffer the FIRST chunk for each candidate. A
+    # retryable failure here (connection refused, 529, rate-limit) before any
+    # chunk has reached the caller falls through to the next model. Once we
+    # break out of this loop we are committed to ``translator`` / ``first`` and
+    # mid-stream fallback is no longer possible.
+    translator: AsyncIterator[CanonicalChunk] | None = None
+    first: CanonicalChunk | None = None
+    first_exhausted = False
+    last_error: UpstreamError | None = None
+
+    for attempt, model_id in enumerate(chain):
+        attempt_req = req if model_id == req.model else dataclasses.replace(
+            req, model=model_id
+        )
+        try:
+            candidate = _open_translated_stream(attempt_req)
+            # Pull the first chunk so a first-chunk failure is still pre-stream.
+            try:
+                first = await candidate.__anext__()
+            except StopAsyncIteration:
+                # Empty but successful stream — nothing more to yield.
+                first_exhausted = True
+            translator = candidate
+            break
+        except UpstreamError as err:
+            last_error = err
+            is_last = attempt == len(chain) - 1
+            if is_last or not _is_retryable_upstream_error(err):
+                raise
+            next_model = chain[attempt + 1]
+            logger.warning(
+                "stream upstream pre-stream fallback: model=%r failed with "
+                "retryable error [%s status=%s]; falling through to %r "
+                "(attempt %d/%d) BEFORE any chunk was yielded",
+                model_id,
+                err.provider,
+                err.status,
+                next_model,
+                attempt + 2,
+                len(chain),
+            )
+            if backoff_s > 0:
+                await asyncio.sleep(backoff_s)
+
+    if translator is None:  # pragma: no cover - defensive; loop returns/raises
+        raise last_error or UpstreamError(
+            provider="unknown", status=None, message="empty model chain"
+        )
+
+    # --- COMMITTED: yield the buffered first chunk, then the rest -------
+    # Past this point we are bound to the chosen model. A retryable error from
+    # here on is NOT a fallback opportunity (see the docstring boundary): it
+    # propagates as a wrapped UpstreamError out of ``_translate_stream``.
+    if first is not None:
+        yield first
+    if not first_exhausted:
+        async for chunk in translator:
+            yield chunk
+
+
+def _open_translated_stream(
+    req: CanonicalRequest,
+) -> AsyncIterator[CanonicalChunk]:
+    """Open one upstream stream for a concrete model and translate it.
+
+    Returns a fresh async iterator of :class:`CanonicalChunk`. The first
+    ``__anext__`` drives the actual LiteLLM connection (because
+    ``_translated_stream_once`` is a generator), so connection AND first-chunk
+    failures both surface from the same await — keeping the pre-stream
+    fallback boundary clean.
+    """
+    return _translated_stream_once(req)
+
+
+async def _translated_stream_once(
+    req: CanonicalRequest,
+) -> AsyncIterator[CanonicalChunk]:
+    """Single streaming completion for one concrete model (no fallback)."""
     kwargs = _build_litellm_kwargs(req, stream=True)
     kwargs.update(_passthrough_auth_kwargs(req))
     try:
@@ -1008,4 +1152,5 @@ __all__ = [
     "UpstreamError",
     "call_upstream",
     "stream_upstream",
+    "resolve_fallback_chain",
 ]

@@ -30,11 +30,9 @@ This emitter closes both gaps without touching the engine or
   interesting (see ``_INTERESTING_SOURCES``).
 * It computes the cost from the registry's per-million-token price map
   (``pricing.by_prefix`` in models-registry.json).  The numeric cost is
-  published as ``payload["cents"]`` and also mirrored under
-  ``payload["score"]`` because the pipeline-side
-  ``_BusRecorder._summarise_payload`` whitelist (owned by another package)
-  currently surfaces ``score`` but not ``cents`` into ``payload_summary``.
-  See the "Known limitations" section below.
+  published as ``payload["cents"]``.  As of the F2 follow-up the pipeline-side
+  ``_BusRecorder._summarise_payload`` whitelist surfaces ``cents`` directly, so
+  the historical ``score``-key mirror has been removed entirely.
 
 Token counts
 ------------
@@ -75,12 +73,6 @@ Known limitations
 #. **Streaming-output estimate.**  Output tokens for streaming requests
    are estimated at ``chars / 4``.  Real tokenisation is provider-
    specific and the actual count typically differs by ±15%.
-#. **Score-field mirror.**  ``cents`` is published under its own
-   ``payload["cents"]`` field, but is ALSO mirrored under
-   ``payload["score"]`` because :class:`_BusRecorder` (in proxy/pipeline.py,
-   owned by another package) whitelists ``score`` but not ``cents`` into the
-   header-facing ``payload_summary``.  The scratch path no longer touches
-   ``score``; drop the bus mirror once the recorder whitelists ``cents``.
 #. **Rounding.**  Sub-cent costs round UP to one cent so a tiny request
    still surfaces a header — easier for downstream alarms to detect.
    Strict zero-cost flows therefore land at ``X-Enchanter-Cost-Cents:
@@ -261,15 +253,12 @@ class CostLedgerEmitter:
         bucket.cents = cents
         bucket.model = model
 
-        # Bus payload.  ``cents`` is the real field every direct bus subscriber
-        # reads.  ``score`` mirrors it ONLY because the pipeline-side
-        # ``_BusRecorder._summarise_payload`` whitelist (in proxy/pipeline.py,
-        # owned by another package) surfaces ``score`` but not ``cents`` into
-        # the header-facing ``payload_summary``.  The scratch path above is now
-        # ``score``-free; this remaining mirror is a documented cross-package
-        # constraint, not a scratch-bucket hack — drop it once the recorder
-        # whitelists ``cents``.  Source is ``proxy-pipeline`` so
-        # ``_BusRecorder.is_interesting`` accepts the event.
+        # Bus payload.  ``cents`` is the real field every bus subscriber reads.
+        # F2 — the pipeline-side ``_BusRecorder._summarise_payload`` whitelist
+        # now surfaces ``cents`` directly, so the historical ``score``-key
+        # mirror is GONE (the smuggle is removed, not just deprecated). Source
+        # is ``proxy-pipeline`` so ``_BusRecorder.is_interesting`` accepts the
+        # event.
         event = build_event(
             correlation_id=ctx.correlation_id,
             session_id=ctx.session_id,
@@ -282,8 +271,6 @@ class CostLedgerEmitter:
                 "model": model,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
-                # Recorder-whitelist mirror of ``cents`` — see comment above.
-                "score": cents,
             },
         )
         await ctx.bus.publish(event.topic, event)

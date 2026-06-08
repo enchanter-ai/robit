@@ -9,8 +9,8 @@ Coverage:
 * Streaming path: ``accumulated_text`` chars/4 estimate when response is
   ``None``; documents the known under-count.
 * Integration: full :func:`pipeline.run` produces a ``BusObservation``
-  with ``topic="cost.ledger.recorded"`` and ``payload_summary["score"]``
-  carrying the cents.
+  with ``topic="cost.ledger.recorded"`` and ``payload_summary["cents"]``
+  carrying the cents (F2 — the historical ``score`` smuggle is gone).
 * HTTP integration: a real :class:`ProxyServer` surfaces
   ``X-Enchanter-Cost-Cents`` on a unary 200 response.
 * Accumulation: two requests with the same model both produce non-zero
@@ -162,7 +162,8 @@ async def test_unary_post_session_publishes_cost_event():
     ev = cost_events[0]
     assert ev.source == "proxy-pipeline"
     assert ev.payload["cents"] == 1
-    assert ev.payload["score"] == 1  # cents mirrored under score for recorder.
+    # F2 — ``cents`` is published directly; the ``score`` smuggle is gone.
+    assert "score" not in ev.payload
     assert ev.payload["model"] == "gpt-4o-mini"
     assert ev.payload["input_tokens"] == 100
     assert ev.payload["output_tokens"] == 50
@@ -307,11 +308,13 @@ async def test_pipeline_run_surfaces_cost_observation():
     )
     ob = cost_obs[0]
     assert ob.source == "proxy-pipeline"
-    # ``cents`` is dropped by the recorder whitelist; ``score`` carries it.
-    assert ob.payload_summary.get("score", 0) > 0
+    # F2 — the recorder whitelist now surfaces ``cents`` directly; the ``score``
+    # smuggle is gone.
+    assert ob.payload_summary.get("cents", 0) > 0
+    assert "score" not in ob.payload_summary
     # Sanity: 10_000 input + 5_000 output at gpt-4o-mini rates
     # (15c, 60c per M) = 0.15 + 0.30 = 0.45 cents → ceiling → 1 cent.
-    assert int(ob.payload_summary["score"]) == 1
+    assert int(ob.payload_summary["cents"]) == 1
 
 
 @pytest.mark.asyncio
@@ -345,7 +348,7 @@ async def test_pipeline_run_accumulates_across_requests_without_crashing():
     for r in (r1, r2):
         cost_obs = [ob for ob in r.fired if ob.topic == "cost.ledger.recorded"]
         assert len(cost_obs) == 1
-        assert int(cost_obs[0].payload_summary["score"]) == 11
+        assert int(cost_obs[0].payload_summary["cents"]) == 11
 
 
 # ---------------------------------------------------------------------------

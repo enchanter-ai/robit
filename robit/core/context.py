@@ -255,6 +255,12 @@ class RequestContext:
     user_prompt: str | None = None
     mcp_server_id: str | None = None
     tool_call_id: str | None = None
+    # Operator's additive prompt overlay for agent-shaped engines (audit §8 /
+    # F3). Threaded from PipelineOptions.prompt_overlay through the orchestrator
+    # into every plugin's on_phase ctx — WITHOUT changing on_phase's signature.
+    # Precedence: framework < engine-author prompt < operator overlay. ``None``
+    # (the default) means no overlay; deterministic engines ignore it.
+    prompt_overlay: str | None = None
 
 
 def _now_ms() -> int:
@@ -269,6 +275,7 @@ def create_request_context(
     mcp_server_id: str | None = None,
     tool_call_id: str | None = None,
     deadline_ms: int = 30_000,
+    prompt_overlay: str | None = None,
 ) -> RequestContext:
     return RequestContext(
         correlation_id=str(uuid.uuid4()),
@@ -281,6 +288,7 @@ def create_request_context(
         user_prompt=user_prompt,
         mcp_server_id=mcp_server_id,
         tool_call_id=tool_call_id,
+        prompt_overlay=prompt_overlay,
     )
 
 

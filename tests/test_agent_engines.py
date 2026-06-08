@@ -347,12 +347,25 @@ class TestPilotAgentOn:
         ]
         assert len(drift_events) == 0
 
-    async def test_flag_on_but_no_seam_falls_back_to_deterministic(self, monkeypatch) -> None:
-        """Flag ON but NO llm_call injected → the agent path cannot run, so the
-        deterministic path is used (no crash, no network)."""
+    async def test_flag_on_no_seam_uses_real_call_and_fails_open(self, monkeypatch) -> None:
+        """Flag ON + NO injected seam → the agent path now builds a REAL
+        ``call_upstream``-backed seam (F3(b)).  With no live credentials the
+        upstream call raises; the engine is advisory and fails OPEN (clean ack,
+        no crash, no drift event).  The network is never actually hit because we
+        patch ``call_upstream`` to raise before any provider request."""
         monkeypatch.setenv("ROBIT_INTENT_ANCHOR_AGENT", "1")
 
-        engine = IntentAnchor()  # no llm_call
+        # Stub the real upstream so no network is touched (F3 contract).
+        import robit.proxy.upstream as upstream_mod
+
+        async def _boom(*args, **kwargs):
+            raise upstream_mod.UpstreamError(
+                provider="anthropic", status=401, message="no creds in test"
+            )
+
+        monkeypatch.setattr(upstream_mod, "call_upstream", _boom)
+
+        engine = IntentAnchor()  # no llm_call → real seam built, then raises
         session_id = "sess-on-noseam"
         _set_anchor(engine, session_id, "implement the red-black tree insertion algorithm")
 
@@ -364,11 +377,12 @@ class TestPilotAgentOn:
 
         ctx = create_request_context(session_id=session_id)
         await _fire_phase(bus, ctx, "post-session", "summarize quarterly finance results")
+        # Must not raise — advisory fail-open.
         await orch.run(ctx, dispatch)
 
         drift_events = [
             e for e in bus.tap(ctx.correlation_id)
             if e.topic == "intent-anchor.drift.detected"
         ]
-        assert len(drift_events) == 1
-        assert drift_events[0].payload.get("verdict_source") != "agent"
+        # Fail-open: the agent call errored, so no verdict / no drift event.
+        assert len(drift_events) == 0

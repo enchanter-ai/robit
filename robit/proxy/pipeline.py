@@ -94,7 +94,7 @@ from .canonical import (
 from .conduct import DEFAULT_PROXY_RULES, apply_conduct_to_request
 from .events import EmitContext, EmitPhase, EventEmitter, load_emitters
 from .streaming import SecretSanitizingStream, StreamAccumulator, tee_stream
-from .upstream import call_upstream, stream_upstream
+from .upstream import call_upstream, resolve_fallback_chain, stream_upstream
 
 
 _log = logging.getLogger(__name__)
@@ -357,6 +357,12 @@ class _BusRecorder:
             "matched_patterns",
             "redacted_length",
             "severity",
+            # F2 — the cost-ledger emitter now publishes ``cents`` directly
+            # instead of smuggling it under ``score``. ``score`` is retained in
+            # the whitelist as a harmless no-op (no current emitter publishes
+            # it) so a future scoring emitter can surface a score without
+            # another whitelist edit; nothing depends on it any more.
+            "cents",
             "score",
             "reason",
             # Mid-stream redactions captured by SecretSanitizingStream.
@@ -583,7 +589,14 @@ def _build_orchestrator(
     registry = load_engine_registry()
     registry, skipped = _apply_engine_dial(registry, opts)
     bus = InProcessBus()
-    orch = Orchestrator(OrchestratorConfig(registry=registry, bus=bus))
+    # F3 — thread the operator's additive prompt overlay through the
+    # orchestrator so every agent-shaped engine reads it from ``ctx`` in
+    # on_phase (no on_phase signature change).
+    orch = Orchestrator(
+        OrchestratorConfig(
+            registry=registry, bus=bus, prompt_overlay=opts.prompt_overlay
+        )
+    )
     return bus, orch, skipped
 
 
@@ -627,7 +640,10 @@ async def run(
         await bus.publish(ev.topic, ev)
 
     # 3. Build the request context.
-    ctx = create_request_context(user_prompt=_prompt_summary(effective_req))
+    ctx = create_request_context(
+        user_prompt=_prompt_summary(effective_req),
+        prompt_overlay=opts.prompt_overlay,  # F3 — operator overlay end-to-end.
+    )
 
     # 4. Build the emitter chain and the per-request EmitContext.
     emitters = tuple(load_emitters())
@@ -656,7 +672,18 @@ async def run(
     captured: dict = {}
 
     async def dispatch(ctx) -> CanonicalResponse:
-        resp = await call_upstream(effective_req)
+        # F1 — activate the tier-router/registry fallback chain in the live
+        # run path. ``call_upstream`` already iterates a model chain and falls
+        # through on retryable upstream errors; the proxy previously passed no
+        # chain (single-model no-op). We derive a registry-backed chain from
+        # the concrete request model (primary + same-family siblings). The
+        # request carries no semantic task-class, so we cannot consult the
+        # TierRouter's task-class→models map directly — see
+        # ``resolve_fallback_chain`` for the full rationale. A model the
+        # registry does not know yields a single-element chain, i.e. the exact
+        # legacy behaviour (no regression).
+        chain = resolve_fallback_chain(effective_req.model)
+        resp = await call_upstream(effective_req, models=chain)
         captured["resp"] = resp
         # Inject the post-response payload BEFORE the orchestrator advances
         # to the post-response phase so secret-mask sees real content.
@@ -743,7 +770,10 @@ async def stream(
     for ev in skipped:
         await bus.publish(ev.topic, ev)
 
-    ctx = create_request_context(user_prompt=_prompt_summary(effective_req))
+    ctx = create_request_context(
+        user_prompt=_prompt_summary(effective_req),
+        prompt_overlay=opts.prompt_overlay,  # F3 — operator overlay end-to-end.
+    )
 
     # Build the emitter chain + EmitContext for this request.
     emitters = tuple(load_emitters())
@@ -899,7 +929,12 @@ async def _stream_body(
                 # The tee_stream then feeds the SANITISED chunks to the
                 # accumulator (so post-response scans see redacted text)
                 # and yields them to the client.
-                src = stream_upstream(req)
+                #
+                # F1 — pass the registry-backed fallback chain. Streaming
+                # fallback is PRE-STREAM only (before the first chunk reaches
+                # the client); ``stream_upstream`` enforces that boundary. See
+                # resolve_fallback_chain for why we don't route via TierRouter.
+                src = stream_upstream(req, models=resolve_fallback_chain(req.model))
                 sanitised = sanitizer.wrap(src)
                 async for chunk in tee_stream(sanitised, accumulator):
                     # Emit a one-shot truncation bus event the first time

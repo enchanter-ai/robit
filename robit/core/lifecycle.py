@@ -87,6 +87,11 @@ class OrchestratorConfig:
     timeouts: dict[LifecyclePhase, int] = field(
         default_factory=lambda: dict(DEFAULT_PHASE_TIMEOUTS_MS)
     )
+    # Operator's additive prompt overlay (audit §8 / F3). Carried onto every
+    # RequestContext the orchestrator hands to a plugin's on_phase, so an
+    # agent-shaped engine reads ``ctx.prompt_overlay`` without on_phase's
+    # signature changing. ``None`` → no overlay.
+    prompt_overlay: str | None = None
 
 
 def _now_ms() -> int:
@@ -101,6 +106,7 @@ class Orchestrator:
         self._registry = config.registry
         self._bus = config.bus
         self._timeouts = config.timeouts
+        self._prompt_overlay = config.prompt_overlay
         self._wire_subscriptions()
 
     async def run(self, ctx: RequestContext, dispatch: DispatchHandler) -> object:
@@ -370,4 +376,7 @@ class Orchestrator:
             deadline_ms=30_000,
             started_ms=event.ts,
             degraded_findings=[],
+            # F3 — carry the operator overlay so agent-shaped engines can read
+            # ``ctx.prompt_overlay`` in on_phase (signature unchanged).
+            prompt_overlay=self._prompt_overlay,
         )
