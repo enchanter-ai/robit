@@ -33,6 +33,20 @@ Schema (all fields required unless marked optional):
   # Optional (any runtime):
   depends_on   list[str]  engine names that must load before this one
   tags         list[str]  free-form label list
+
+  # Optional [agent] table (audit §8 — "agent-shaped delegations"):
+  [agent]
+  tier         str        task-class the tier-router understands —
+                          one of "orchestrator" | "executor" | "validator"
+  [agent.prompts]
+  <phase>      str        repo-relative path to the engine-authored prompt
+                          body for that phase, e.g. post-session = "prompts/drift.md"
+
+  When present, the [agent] table marks the engine as "agent-shaped": its
+  on_phase may call a model (the prompt body lives in the referenced .md files)
+  instead of, or alongside, a deterministic algorithm.  The table is optional —
+  most engines have no [agent] table and parse with agent=None, fully
+  backward-compatible.
 """
 
 from __future__ import annotations
@@ -62,7 +76,7 @@ _SIDECAR_OPTIONAL: frozenset[str] = frozenset({"args", "env_allowlist", "adapter
 _SIDECAR_FORBIDDEN: frozenset[str] = frozenset({"adapter"})
 
 _OPTIONAL_FIELDS: frozenset[str] = frozenset(
-    {"depends_on", "tags", "runtime", "adapter", "command", "args", "env_allowlist", "adapter_metadata", "concurrent_safe"}
+    {"depends_on", "tags", "runtime", "adapter", "command", "args", "env_allowlist", "adapter_metadata", "concurrent_safe", "agent"}
 )
 _ALL_KNOWN_FIELDS: frozenset[str] = _RUNTIME_AGNOSTIC_REQUIRED | _OPTIONAL_FIELDS
 
@@ -70,6 +84,11 @@ _REQUIRED_TOPICS_FIELDS: frozenset[str] = frozenset({"subscribes", "emits"})
 
 _VALID_BUDGET_TIERS: frozenset[str] = frozenset({"always", "med-or-higher", "high-only"})
 _VALID_RUNTIMES: frozenset[str] = frozenset({"python", "sidecar"})
+
+# [agent] table — strict shape.  `tier` is a tier-router task class; `prompts`
+# maps lifecycle-phase name → repo-relative prompt path.
+_REQUIRED_AGENT_FIELDS: frozenset[str] = frozenset({"tier", "prompts"})
+_VALID_AGENT_TIERS: frozenset[str] = frozenset({"orchestrator", "executor", "validator"})
 
 DEFAULT_SIDECAR_ENV_ALLOWLIST: tuple[str, ...] = ("PATH",)
 
@@ -82,6 +101,30 @@ DEFAULT_SIDECAR_ENV_ALLOWLIST: tuple[str, ...] = ("PATH",)
 class EngineTopics:
     subscribes: tuple[str, ...]
     emits: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AgentSpec:
+    """Resolved `[agent]` table — marks an engine as "agent-shaped" (audit §8).
+
+    tier:
+        Tier-router task class the engine's model call routes to —
+        one of "orchestrator" | "executor" | "validator".
+    prompts:
+        Phase name → repo-relative path to the engine-authored prompt body.
+        Stored as a sorted tuple of (phase, path) pairs so the dataclass stays
+        frozen/hashable; use :meth:`prompt_for` for lookup.
+    """
+
+    tier: str
+    prompts: tuple[tuple[str, str], ...]
+
+    def prompt_for(self, phase: str) -> str | None:
+        """Return the prompt path declared for *phase*, or None."""
+        for p, path in self.prompts:
+            if p == phase:
+                return path
+        return None
 
 
 @dataclass(frozen=True)
@@ -110,6 +153,10 @@ class EngineManifest:
     # Optional
     depends_on: tuple[str, ...] = field(default_factory=tuple)
     tags: tuple[str, ...] = field(default_factory=tuple)
+
+    # Optional [agent] table (audit §8).  None → not agent-shaped (the common
+    # case); set → the engine may back a phase with a model call.
+    agent: AgentSpec | None = None
 
     # Wave 13.3 — per-engine opt-in for concurrent dispatch. Default False
     # preserves the historical (post-Wave-13.3: serial) ordering for engines
@@ -163,6 +210,91 @@ def _optional_str_list(
     if key not in data:
         return ()
     return _require_str_list(data, key, path)
+
+
+def _parse_agent_table(data: dict[str, Any], path: str) -> AgentSpec | None:
+    """Validate and parse the optional ``[agent]`` table.
+
+    Returns None when absent.  When present, validates strictly:
+      * the table is a dict with exactly {tier, prompts}
+      * ``tier`` is one of the known tier-router task classes
+      * ``prompts`` is a table of phase(str) → path(str), non-empty
+    """
+    if "agent" not in data:
+        return None
+
+    raw_agent = data["agent"]
+    if not isinstance(raw_agent, dict):
+        raise ManifestSchemaError(
+            "field 'agent' must be a TOML table",
+            field="agent",
+            manifest_path=path,
+        )
+
+    agent_unknown = set(raw_agent.keys()) - _REQUIRED_AGENT_FIELDS
+    if agent_unknown:
+        first = sorted(agent_unknown)[0]
+        raise ManifestSchemaError(
+            f"unknown field(s) in [agent]: {sorted(agent_unknown)!r}",
+            field=f"agent.{first}",
+            manifest_path=path,
+        )
+
+    agent_missing = _REQUIRED_AGENT_FIELDS - set(raw_agent.keys())
+    if agent_missing:
+        first = sorted(agent_missing)[0]
+        raise ManifestSchemaError(
+            f"missing required field(s) in [agent]: {sorted(agent_missing)!r}",
+            field=f"agent.{first}",
+            manifest_path=path,
+        )
+
+    tier = raw_agent["tier"]
+    if not isinstance(tier, str):
+        raise ManifestSchemaError(
+            f"field 'agent.tier' must be a string, got {type(tier).__name__}",
+            field="agent.tier",
+            manifest_path=path,
+        )
+    if tier not in _VALID_AGENT_TIERS:
+        raise ManifestSchemaError(
+            f"agent.tier {tier!r} is not one of {sorted(_VALID_AGENT_TIERS)}",
+            field="agent.tier",
+            manifest_path=path,
+        )
+
+    raw_prompts = raw_agent["prompts"]
+    if not isinstance(raw_prompts, dict):
+        raise ManifestSchemaError(
+            "field 'agent.prompts' must be a TOML table of phase→path",
+            field="agent.prompts",
+            manifest_path=path,
+        )
+    if not raw_prompts:
+        raise ManifestSchemaError(
+            "field 'agent.prompts' must declare at least one phase→path mapping",
+            field="agent.prompts",
+            manifest_path=path,
+        )
+
+    prompt_items: list[tuple[str, str]] = []
+    for phase_key, prompt_path in raw_prompts.items():
+        if not isinstance(phase_key, str) or not isinstance(prompt_path, str):
+            raise ManifestSchemaError(
+                "field 'agent.prompts' must be a TOML table of string→string (phase→path)",
+                field="agent.prompts",
+                manifest_path=path,
+            )
+        if not prompt_path:
+            raise ManifestSchemaError(
+                f"field 'agent.prompts.{phase_key}' must be a non-empty path",
+                field=f"agent.prompts.{phase_key}",
+                manifest_path=path,
+            )
+        prompt_items.append((phase_key, prompt_path))
+
+    # Sort for deterministic, hashable ordering.
+    return AgentSpec(tier=tier, prompts=tuple(sorted(prompt_items)))
 
 
 def parse_manifest(toml_path: Path) -> EngineManifest:
@@ -348,6 +480,9 @@ def parse_manifest(toml_path: Path) -> EngineManifest:
     if "concurrent_safe" in data:
         concurrent_safe = _require_bool(data, "concurrent_safe", path_str)
 
+    # [agent] table — optional; None when absent.
+    agent = _parse_agent_table(data, path_str)
+
     return EngineManifest(
         name=name,
         description=description,
@@ -365,5 +500,6 @@ def parse_manifest(toml_path: Path) -> EngineManifest:
         depends_on=depends_on,
         tags=tags,
         concurrent_safe=concurrent_safe,
+        agent=agent,
         manifest_path=path_str,
     )

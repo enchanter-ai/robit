@@ -11,6 +11,7 @@ Public surface:
 
     EngineManifest      — parsed manifest dataclass
     EngineTopics        — topics sub-table dataclass
+    AgentSpec           — optional [agent] table (agent-shaped engines, §8)
     ManifestSchemaError — raised on schema violation
     EngineLoadError     — raised when an adapter cannot be imported
     DependencyCycleError — raised when depends_on forms a cycle
@@ -18,11 +19,12 @@ Public surface:
 
 from robit.loader.discovery import find_engine_manifests, load_engine_registry
 from robit.loader.errors import DependencyCycleError, EngineLoadError, ManifestSchemaError
-from robit.loader.manifest import EngineManifest, EngineTopics
+from robit.loader.manifest import AgentSpec, EngineManifest, EngineTopics
 
 __all__ = [
     "find_engine_manifests",
     "load_engine_registry",
+    "AgentSpec",
     "EngineManifest",
     "EngineTopics",
     "ManifestSchemaError",
