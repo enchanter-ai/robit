@@ -81,6 +81,7 @@ from robit.core import (
 )
 from robit.core.bus import build_event
 from robit.core.events import EnchantedEvent
+from robit.core.verdict import Verdict, render_veto_http
 from robit.loader import load_engine_registry
 
 from .canonical import (
@@ -143,13 +144,48 @@ class BusObservation:
 
 @dataclass(frozen=True)
 class VetoResult:
-    """Returned by :func:`run` / :func:`stream` when a lifecycle gate vetoed."""
+    """Returned by :func:`run` / :func:`stream` when a lifecycle gate vetoed.
+
+    Backwards-compat shim (G1): this dataclass predates the unified
+    :class:`~robit.core.verdict.Verdict`.  It is kept for one release as a thin
+    view over a ``Verdict`` — its scalar fields mirror the verdict's, and the
+    structured object is reachable via :attr:`verdict`.  New code should read
+    ``verdict`` directly; HTTP rendering goes through :meth:`to_http_451`.
+    """
 
     phase: str
     plugin: str
     reason: str
     pattern_id: str | None = None
     pattern_name: str | None = None
+    verdict: Verdict | None = None
+
+    @classmethod
+    def from_verdict(cls, verdict: Verdict) -> "VetoResult":
+        """Build a VetoResult from a structured Verdict — no string-slicing."""
+        return cls(
+            phase=str(verdict.phase),
+            plugin=verdict.plugin,
+            reason=verdict.reason,
+            pattern_id=verdict.pattern_id,
+            pattern_name=verdict.pattern_name,
+            verdict=verdict,
+        )
+
+    def to_http_451(self) -> tuple[int, dict[str, str], dict[str, object]]:
+        """Render to an HTTP 451 ``(status, headers, body)`` triple.
+
+        Renders from the structured :class:`Verdict` (G1).  Degrades gracefully
+        when ``verdict`` is absent by reconstructing one from the scalar fields.
+        """
+        verdict = self.verdict or Verdict(
+            plugin=self.plugin,
+            phase=self.phase,  # type: ignore[arg-type]
+            reason=self.reason,
+            pattern_id=self.pattern_id,
+            pattern_name=self.pattern_name,
+        )
+        return render_veto_http(verdict)
 
 
 @dataclass(frozen=True)
@@ -426,26 +462,17 @@ async def _publish_post_response(
 def _veto_from_error(exc: SecurityVetoError) -> VetoResult:
     """Translate a :class:`SecurityVetoError` into a :class:`VetoResult`.
 
-    Tries to extract pattern_id / pattern_name from the conventional
-    ``"<plugin>:<pattern_id>"`` reason string used by destructive-op-gate
-    and cve-pattern-gate.  Best-effort only; fields default to ``None`` if
-    the reason doesn't fit the convention.
+    G1: reads the structured :class:`~robit.core.verdict.Verdict` the error now
+    carries instead of string-slicing the reason.  ``SecurityVetoError`` always
+    populates ``.verdict`` (it derives one from the legacy reason at the raise
+    site when an engine didn't attach one), so no parsing happens here.  The
+    fallback to ``Verdict.from_reason`` only guards against a hand-constructed
+    error with a ``None`` verdict and never crashes.
     """
-    reason = exc.reason or ""
-    pattern_id: str | None = None
-    if ":" in reason:
-        # Reason shape: "<plugin>:<pattern_id>" or "<plugin>:<id> (advisory)".
-        _, _, rest = reason.partition(":")
-        token = rest.strip().split(" ", 1)[0]
-        if token:
-            pattern_id = token
-    return VetoResult(
-        phase=str(exc.phase),
-        plugin=exc.plugin,
-        reason=reason,
-        pattern_id=pattern_id,
-        pattern_name=None,
+    verdict = exc.verdict or Verdict.from_reason(
+        plugin=exc.plugin, phase=exc.phase, reason=exc.reason
     )
+    return VetoResult.from_verdict(verdict)
 
 
 def _build_orchestrator() -> tuple[InProcessBus, Orchestrator]:
@@ -648,20 +675,26 @@ def _check_trust_gate_veto(
         key = bus.acks._key(ctx.correlation_id, "trust-gate", plugin)  # type: ignore[attr-defined]
         ack = bus.acks._acks.get(key)  # type: ignore[attr-defined]
         if ack is not None and ack.status == "veto":
-            reason = ack.reason or "veto"
-            pattern_id: str | None = None
-            if ":" in reason:
-                _, _, rest = reason.partition(":")
-                token = rest.strip().split(" ", 1)[0]
-                if token:
-                    pattern_id = token
-            return VetoResult(
-                phase="trust-gate",
-                plugin=plugin,
-                reason=reason,
-                pattern_id=pattern_id,
-                pattern_name=None,
-            )
+            # G1 — prefer the ack's structured verdict; otherwise derive one
+            # from the legacy reason string at this single site (no ad-hoc
+            # slicing scattered through the consumer).
+            verdict = ack.verdict
+            if verdict is None:
+                verdict = Verdict.from_reason(
+                    plugin=plugin, phase="trust-gate", reason=ack.reason
+                )
+            else:
+                # Re-stamp plugin/phase from the orchestrator's authoritative
+                # view rather than trusting the engine's self-report.
+                verdict = Verdict(
+                    plugin=plugin,
+                    phase="trust-gate",
+                    reason=verdict.reason,
+                    pattern_id=verdict.pattern_id,
+                    pattern_name=verdict.pattern_name,
+                    severity=verdict.severity,
+                )
+            return VetoResult.from_verdict(verdict)
     return None
 
 

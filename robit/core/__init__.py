@@ -10,8 +10,15 @@ from .context import (
     create_request_context,
 )
 from .events import EnchantedEvent, EventHandler, PluginAck, PluginAckStatus
+from .verdict import Verdict, render_veto_http
 from .plugin import BudgetTierGate, PluginAdapter, PluginRegistry
-from .bus import Bus, InProcessBus
+from .bus import (
+    Bus,
+    DroppedEvent,
+    HandlerFailure,
+    InProcessBus,
+    MAX_DERIVED_HOPS,
+)
 from .lifecycle import (
     Orchestrator,
     OrchestratorConfig,
@@ -24,11 +31,14 @@ __all__ = [
     "BudgetTierGate",
     "Bus",
     "DEFAULT_PHASE_TIMEOUTS_MS",
+    "DroppedEvent",
     "EnchantedEvent",
     "EventHandler",
+    "HandlerFailure",
     "InProcessBus",
     "LIFECYCLE_PHASES",
     "LifecyclePhase",
+    "MAX_DERIVED_HOPS",
     "Orchestrator",
     "OrchestratorConfig",
     "PhaseTimeoutError",
@@ -39,5 +49,7 @@ __all__ = [
     "PluginRegistry",
     "RequestContext",
     "SecurityVetoError",
+    "Verdict",
     "create_request_context",
+    "render_veto_http",
 ]

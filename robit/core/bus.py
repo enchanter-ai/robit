@@ -15,13 +15,45 @@ import asyncio
 import time
 import uuid
 from dataclasses import dataclass, replace
-from typing import Mapping, MutableMapping
+from typing import Callable, Mapping, MutableMapping
 
 from .context import LifecyclePhase
 from .events import EnchantedEvent, EventHandler, PluginAck
 
 
 RING_BUFFER_DEFAULT_SIZE = 10_000
+
+# G5 — maximum number of derived re-publish hops. An event whose hop_count
+# would exceed this is dropped (and the drop recorded) rather than re-published,
+# bounding any runaway derived-event cycle to a finite depth.
+MAX_DERIVED_HOPS = 8
+
+
+@dataclass(frozen=True)
+class DroppedEvent:
+    """Record of an event the bus refused to re-publish.
+
+    ``reason`` is a stable machine code: ``"hop-cap"`` for a depth-guard drop.
+    """
+
+    topic: str
+    source: str
+    hop_count: int
+    reason: str
+
+
+@dataclass(frozen=True)
+class HandlerFailure:
+    """Record of a subscriber that raised during dispatch (G6).
+
+    The bus stays crash-isolated — the exception never propagates out of
+    ``publish`` — but the failure is captured here so it is observable instead
+    of silently swallowed.
+    """
+
+    topic: str
+    source: str
+    error: str
 
 
 def _topic_matches(pattern: str, topic: str) -> bool:
@@ -171,11 +203,25 @@ class Subscription:
 class InProcessBus(Bus):
     """In-process bus with bounded ring-buffer event store."""
 
-    def __init__(self, buffer_max: int = RING_BUFFER_DEFAULT_SIZE) -> None:
+    def __init__(
+        self,
+        buffer_max: int = RING_BUFFER_DEFAULT_SIZE,
+        *,
+        on_handler_error: Callable[[HandlerFailure], None] | None = None,
+        on_event_dropped: Callable[[DroppedEvent], None] | None = None,
+    ) -> None:
         self._subscriptions: dict[str, set[EventHandler]] = {}
         self._buffer: list[EnchantedEvent] = []
         self._buffer_max = buffer_max
         self.acks = AckTracker.new()
+        # G6 — observability sinks. Handler crashes are still isolated (never
+        # propagate out of publish) but are now recorded here and optionally
+        # forwarded to a caller-supplied callback instead of silently dropped.
+        self.handler_failures: list[HandlerFailure] = []
+        self._on_handler_error = on_handler_error
+        # G5 — record of events dropped by the hop-count guard.
+        self.dropped_events: list[DroppedEvent] = []
+        self._on_event_dropped = on_event_dropped
 
     async def publish(self, topic: str, event: EnchantedEvent) -> None:
         # Stamp id + ts + topic if the caller passed an incomplete event.
@@ -199,15 +245,44 @@ class InProcessBus(Bus):
                 out = await h(event)
                 if out:
                     derived.extend(out)
-            except Exception:
-                # Subscriber failures are isolated by design — bus does not crash.
-                pass
+            except Exception as exc:  # noqa: BLE001 — crash isolation is the contract
+                # G6 — subscriber failures are isolated by design (the bus does
+                # not crash and the exception does not propagate out of publish),
+                # but they are no longer silently swallowed: record + notify.
+                failure = HandlerFailure(
+                    topic=topic, source=event.source, error=repr(exc)
+                )
+                self.handler_failures.append(failure)
+                if self._on_handler_error is not None:
+                    try:
+                        self._on_handler_error(failure)
+                    except Exception:
+                        # The error sink itself must never break the bus.
+                        pass
 
         if matched:
             await asyncio.gather(*(_run(h) for h in matched))
 
         for e in derived:
-            await self.publish(e.topic, e)
+            # G5 — derived events inherit parent.hop_count + 1. Drop (and record)
+            # any event that would exceed the depth guard, bounding runaway
+            # derived-event cycles to a finite depth instead of recursing forever.
+            next_hop = event.hop_count + 1
+            if next_hop > MAX_DERIVED_HOPS:
+                dropped = DroppedEvent(
+                    topic=e.topic,
+                    source=e.source,
+                    hop_count=next_hop,
+                    reason="hop-cap",
+                )
+                self.dropped_events.append(dropped)
+                if self._on_event_dropped is not None:
+                    try:
+                        self._on_event_dropped(dropped)
+                    except Exception:
+                        pass
+                continue
+            await self.publish(e.topic, replace(e, hop_count=next_hop))
 
     def subscribe(self, topic: str, handler: EventHandler) -> Subscription:
         handlers = self._subscriptions.setdefault(topic, set())
@@ -233,8 +308,13 @@ def build_event(
     source: str,
     budget_tier: str,
     payload: Mapping[str, object] | None = None,
+    hop_count: int = 0,
 ) -> EnchantedEvent:
-    """Helper to construct a fully-formed EnchantedEvent with id + ts stamped."""
+    """Helper to construct a fully-formed EnchantedEvent with id + ts stamped.
+
+    ``hop_count`` defaults to 0 (a root event). The bus inherits and increments
+    it for derived re-publishes; callers rarely set it explicitly.
+    """
     return EnchantedEvent(
         id=new_event_id(),
         correlation_id=correlation_id,
@@ -245,4 +325,5 @@ def build_event(
         budget_tier=budget_tier,  # type: ignore[arg-type]
         ts=_now_ms(),
         payload=payload or {},
+        hop_count=hop_count,
     )

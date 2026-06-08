@@ -27,6 +27,7 @@ from .context import (
 )
 from .events import EnchantedEvent, PluginAck
 from .plugin import PluginAdapter, PluginRegistry
+from .verdict import Verdict
 
 
 def _is_concurrent_safe(plugin: PluginAdapter) -> bool:
@@ -39,11 +40,31 @@ def _is_concurrent_safe(plugin: PluginAdapter) -> bool:
 
 
 class SecurityVetoError(Exception):
-    def __init__(self, plugin: str, phase: LifecyclePhase, reason: str) -> None:
+    """Raised when a required plugin vetoes a phase.
+
+    Carries a structured :class:`Verdict` (G1) so downstream consumers read
+    ``pattern_id`` / ``pattern_name`` directly rather than string-slicing the
+    reason. ``plugin`` / ``phase`` / ``reason`` are kept as attributes for
+    backwards-compatibility with pre-Verdict callers.
+    """
+
+    def __init__(
+        self,
+        plugin: str,
+        phase: LifecyclePhase,
+        reason: str,
+        verdict: Verdict | None = None,
+    ) -> None:
         super().__init__(f"security veto from plugin {plugin} at phase {phase}: {reason}")
         self.plugin = plugin
         self.phase = phase
         self.reason = reason
+        # G1 — structured verdict. If the vetoing ack didn't attach one, derive
+        # it from the legacy reason string at this single core site so the rest
+        # of the system never has to parse the reason again.
+        self.verdict = verdict or Verdict.from_reason(
+            plugin=plugin, phase=phase, reason=reason
+        )
 
 
 class PhaseTimeoutError(Exception):
@@ -126,7 +147,24 @@ class Orchestrator:
                 for p in required:
                     a = acks.get(p)
                     if a is not None and a.status == "veto":
-                        raise SecurityVetoError(p, phase, a.reason or "veto")
+                        # Prefer the ack's structured verdict (G1); fall back to
+                        # parsing the reason string inside SecurityVetoError.
+                        verdict = a.verdict
+                        if verdict is not None:
+                            # Re-stamp plugin/phase from the orchestrator's view
+                            # so attribution is authoritative regardless of what
+                            # the engine self-reported.
+                            verdict = Verdict(
+                                plugin=p,
+                                phase=phase,
+                                reason=verdict.reason,
+                                pattern_id=verdict.pattern_id,
+                                pattern_name=verdict.pattern_name,
+                                severity=verdict.severity,
+                            )
+                        raise SecurityVetoError(
+                            p, phase, a.reason or "veto", verdict=verdict
+                        )
 
                 # Advisory plugins fail open — record degraded findings on missing/error.
                 for p in advisory:
