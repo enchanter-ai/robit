@@ -2,6 +2,28 @@
   "last_updated": "2026-04-24",
   "model_count": 255,
   "update_instructions": "When model specs change (new context windows, new models, deprecated models), update this file and bump last_updated. The plugin reads this file as the single source of truth for all model data.",
+  "pricing": {
+    "schema": "cents_per_mtok_by_prefix",
+    "units": "US cents per 1,000,000 tokens",
+    "note": "Keyed by model-name PREFIX (matched longest-prefix-first against the upstream model string), mirroring the cost-ledger emitter's historical table. Each entry is [input_cents_per_mtok, output_cents_per_mtok]. The registry is the source of truth; robit/proxy/events/cost_ledger.py reads this map and falls back to its _DEFAULT_PRICE_* constants for unpriced models. Refresh when vendor rates drift.",
+    "by_prefix": {
+      "claude-3-5-sonnet": [300, 1500],
+      "claude-3-5-haiku": [80, 400],
+      "claude-3-opus": [1500, 7500],
+      "claude-3-sonnet": [300, 1500],
+      "claude-3-haiku": [25, 125],
+      "gpt-4o-mini": [15, 60],
+      "gpt-4o": [250, 1000],
+      "gpt-4-turbo": [1000, 3000],
+      "gpt-4": [3000, 6000],
+      "gpt-3.5-turbo": [50, 150],
+      "o1-preview": [1500, 6000],
+      "o1-mini": [300, 1200],
+      "gemini-1.5-pro": [125, 500],
+      "gemini-1.5-flash": [8, 30],
+      "gemini-1.0-pro": [50, 150]
+    }
+  },
   "models": {
     "claude-opus-4-6": {
       "family": "Claude 4.x",

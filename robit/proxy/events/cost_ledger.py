@@ -28,11 +28,13 @@ This emitter closes both gaps without touching the engine or
 
 * It publishes with ``source="proxy-pipeline"``, which the recorder marks
   interesting (see ``_INTERESTING_SOURCES``).
-* It computes the cost from a small per-million-token price map.  The
-  numeric cost lands under ``payload["score"]`` because ``score`` is one
-  of the keys :func:`_BusRecorder._summarise_payload` whitelists for
-  ``payload_summary``.  Reusing ``score`` is a known compromise; see the
-  "Known limitations" section below.
+* It computes the cost from the registry's per-million-token price map
+  (``pricing.by_prefix`` in models-registry.json).  The numeric cost is
+  published as ``payload["cents"]`` and also mirrored under
+  ``payload["score"]`` because the pipeline-side
+  ``_BusRecorder._summarise_payload`` whitelist (owned by another package)
+  currently surfaces ``score`` but not ``cents`` into ``payload_summary``.
+  See the "Known limitations" section below.
 
 Token counts
 ------------
@@ -47,31 +49,38 @@ should treat the figure as a lower bound, not a precise charge.
 Pricing
 -------
 
-The pricing table is a tiny, hand-curated map keyed by model-name
-prefix.  Unknown models fall back to a conservative middle estimate so
-``X-Enchanter-Cost-Cents`` is always defined for non-zero usage but the
-caller can detect "unknown model" by joining the value against the
-table.  Real per-vendor accounting belongs in the cost-ledger engine —
-this emitter is intentionally lightweight.
+Prices come from the models registry (``pricing.by_prefix`` in
+models-registry.json — the single source of truth for model data), read
+read-only via :func:`_load_registry_prices`.  The map is keyed by
+model-name prefix; unknown models fall back to a conservative middle
+estimate so ``X-Enchanter-Cost-Cents`` is always defined for non-zero
+usage but the caller can detect "unknown model" by joining the value
+against the table.  The in-module :data:`_PRICE_CENTS_PER_M_TOKENS` is a
+seed/fallback only, used when the registry has no pricing section.  Real
+per-vendor accounting belongs in the cost-ledger engine — this emitter is
+intentionally lightweight.
 
 Known limitations
 -----------------
 
-#. **Pricing-table staleness.**  Hardcoded prices in
-   :data:`_PRICE_CENTS_PER_M_TOKENS` will drift as vendors change rates.
-   Operators should refresh the table when a recurring discrepancy with
-   vendor invoices appears.
-#. **Missing-model fallback.**  Any model not matched by the table uses
-   :data:`_DEFAULT_PRICE_INPUT_CENTS_PER_M` and
+#. **Pricing staleness.**  The registry's ``pricing.by_prefix`` prices
+   will drift as vendors change rates.  Operators should refresh the
+   registry section when a recurring discrepancy with vendor invoices
+   appears.
+#. **Missing-model fallback.**  Any model not matched by the registry map
+   uses :data:`_DEFAULT_PRICE_INPUT_CENTS_PER_M` and
    :data:`_DEFAULT_PRICE_OUTPUT_CENTS_PER_M` — fine for telemetry, not
-   fine for chargeback.  Add the model explicitly when accuracy matters.
+   fine for chargeback.  Add the model's prefix to the registry when
+   accuracy matters.
 #. **Streaming-output estimate.**  Output tokens for streaming requests
    are estimated at ``chars / 4``.  Real tokenisation is provider-
    specific and the actual count typically differs by ±15%.
-#. **Score-field reuse.**  ``cents`` is carried in
-   ``payload["score"]`` because :class:`_BusRecorder` whitelists ``score``
-   but not ``cents``.  A Wave 13.2 pipeline change should add ``cents``
-   to the whitelist and migrate this emitter to write its own key.
+#. **Score-field mirror.**  ``cents`` is published under its own
+   ``payload["cents"]`` field, but is ALSO mirrored under
+   ``payload["score"]`` because :class:`_BusRecorder` (in proxy/pipeline.py,
+   owned by another package) whitelists ``score`` but not ``cents`` into the
+   header-facing ``payload_summary``.  The scratch path no longer touches
+   ``score``; drop the bus mirror once the recorder whitelists ``cents``.
 #. **Rounding.**  Sub-cent costs round UP to one cent so a tiny request
    still surfaces a header — easier for downstream alarms to detect.
    Strict zero-cost flows therefore land at ``X-Enchanter-Cost-Cents:
@@ -81,18 +90,31 @@ Known limitations
 
 from __future__ import annotations
 
+import json
+import logging
+from functools import lru_cache
+
 from robit.core.bus import build_event
+from robit.runtime.models_registry import _DEFAULT_REGISTRY
 
 from ._types import EmitContext, EmitPhase
 
+_log = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
-# Pricing table — cents per 1,000,000 tokens, keyed by model-name prefix.
-# Values are illustrative middle-of-2024 list-price snapshots; refresh as
-# vendors update rates.  Keys are matched longest-prefix-first.
+# Pricing — cents per 1,000,000 tokens, keyed by model-name prefix.
+#
+# The models-registry.json ``pricing.by_prefix`` map is now the source of
+# truth (the registry is robit's single source of truth for all model data).
+# :func:`_load_registry_prices` reads it; the module-level
+# :data:`_PRICE_CENTS_PER_M_TOKENS` below is kept ONLY as a seed/fallback for
+# environments where the registry is absent or carries no pricing section, so
+# behaviour never silently regresses.  Keys are matched longest-prefix-first.
 # ---------------------------------------------------------------------------
 
 # (input_cents_per_million, output_cents_per_million)
+# Seed/fallback ONLY — must stay in sync with registry ``pricing.by_prefix``.
 _PRICE_CENTS_PER_M_TOKENS: dict[str, tuple[int, int]] = {
     # Anthropic
     "claude-3-5-sonnet": (300, 1500),
@@ -124,19 +146,50 @@ _DEFAULT_PRICE_OUTPUT_CENTS_PER_M: int = 300
 _CHARS_PER_TOKEN_ESTIMATE: int = 4
 
 
+@lru_cache(maxsize=1)
+def _load_registry_prices() -> dict[str, tuple[int, int]]:
+    """Load ``pricing.by_prefix`` from the models registry (read-only).
+
+    Reads the registry JSON directly via the loader's default path constant
+    (``robit.runtime.models_registry._DEFAULT_REGISTRY``) — the registry is the
+    source of truth for model data, including pricing.  Falls back to the
+    in-module :data:`_PRICE_CENTS_PER_M_TOKENS` seed if the file is missing,
+    malformed, or has no pricing section, so behaviour never regresses to a
+    crash.  Cached because the registry is immutable for a process lifetime.
+    """
+    try:
+        data = json.loads(_DEFAULT_REGISTRY.read_text(encoding="utf-8"))
+        by_prefix = data["pricing"]["by_prefix"]
+        prices: dict[str, tuple[int, int]] = {}
+        for prefix, pair in by_prefix.items():
+            prices[prefix] = (int(pair[0]), int(pair[1]))
+        if prices:
+            return prices
+    except (OSError, KeyError, ValueError, TypeError) as exc:
+        _log.warning(
+            "cost-ledger: falling back to seed price table (registry pricing "
+            "unavailable: %s)",
+            exc,
+        )
+    return dict(_PRICE_CENTS_PER_M_TOKENS)
+
+
 def _price_for(model: str) -> tuple[int, int]:
     """Return ``(input_cents_per_million, output_cents_per_million)`` for *model*.
 
-    Longest-prefix match wins so e.g. ``claude-3-5-sonnet-20241022`` picks the
-    ``claude-3-5-sonnet`` row rather than the broader ``claude-3-sonnet``
-    fallback.
+    Prices come from the models registry's ``pricing.by_prefix`` map (source of
+    truth), with longest-prefix match — so e.g. ``claude-3-5-sonnet-20241022``
+    picks the ``claude-3-5-sonnet`` row rather than the broader
+    ``claude-3-sonnet`` fallback.  Unpriced models fall back to the
+    ``_DEFAULT_PRICE_*`` constants.
     """
+    prices = _load_registry_prices()
     best_key = ""
-    for key in _PRICE_CENTS_PER_M_TOKENS:
+    for key in prices:
         if model.startswith(key) and len(key) > len(best_key):
             best_key = key
     if best_key:
-        return _PRICE_CENTS_PER_M_TOKENS[best_key]
+        return prices[best_key]
     return (_DEFAULT_PRICE_INPUT_CENTS_PER_M, _DEFAULT_PRICE_OUTPUT_CENTS_PER_M)
 
 
@@ -199,14 +252,23 @@ class CostLedgerEmitter:
             # observations (the secret-mask path uses the same pattern).
             return
 
-        # Stash the figure in scratch so siblings (rate-limiter, trust-
-        # scorer) can read the realised cost without re-deriving it.
-        # Namespace by emitter name per the EmitContext scratch convention.
-        ctx.scratch.setdefault("cost-ledger", {})["cents"] = cents
-        ctx.scratch["cost-ledger"]["model"] = model
+        # Stash the figure in this emitter's OWN typed scratch bucket so
+        # siblings (rate-limiter, trust-scorer) can read the realised cost
+        # without re-deriving it.  The bucket is structurally isolated — no
+        # ``score``-key smuggling, no risk of colliding with another emitter's
+        # namespace (see robit.core.RequestScratchpad).
+        bucket = ctx.scratchpad.for_emitter(self.name)
+        bucket.cents = cents
+        bucket.model = model
 
-        # ``score`` carries the cents — see "Score-field reuse" in the
-        # module docstring.  Source is ``proxy-pipeline`` so
+        # Bus payload.  ``cents`` is the real field every direct bus subscriber
+        # reads.  ``score`` mirrors it ONLY because the pipeline-side
+        # ``_BusRecorder._summarise_payload`` whitelist (in proxy/pipeline.py,
+        # owned by another package) surfaces ``score`` but not ``cents`` into
+        # the header-facing ``payload_summary``.  The scratch path above is now
+        # ``score``-free; this remaining mirror is a documented cross-package
+        # constraint, not a scratch-bucket hack — drop it once the recorder
+        # whitelists ``cents``.  Source is ``proxy-pipeline`` so
         # ``_BusRecorder.is_interesting`` accepts the event.
         event = build_event(
             correlation_id=ctx.correlation_id,
@@ -216,15 +278,12 @@ class CostLedgerEmitter:
             source="proxy-pipeline",
             budget_tier=ctx.scratch.get("budget_tier", "always"),
             payload={
-                "score": cents,
-                "model": model,
-                # The raw fields are retained for engines that subscribe
-                # directly to the bus and bypass _BusRecorder.  They are
-                # dropped from payload_summary by the recorder's
-                # whitelist — see _BusRecorder._summarise_payload.
                 "cents": cents,
+                "model": model,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
+                # Recorder-whitelist mirror of ``cents`` — see comment above.
+                "score": cents,
             },
         )
         await ctx.bus.publish(event.topic, event)

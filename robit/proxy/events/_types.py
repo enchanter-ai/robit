@@ -14,9 +14,9 @@ that ports the pre-refactor publishes live in sibling modules.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Protocol
 
-from robit.core import InProcessBus
+from robit.core import InProcessBus, RequestScratchpad, ScratchCompatMapping
 
 from ..canonical import CanonicalRequest, CanonicalResponse
 
@@ -93,12 +93,20 @@ class EmitContext:
         Flips True after the PRE_DISPATCH chain has fired.  Lets a single
         emitter that subscribes to multiple phases know which slot it's
         currently in without inspecting ``phase`` everywhere.
+    scratchpad:
+        The typed per-request scratch surface
+        (:class:`robit.core.RequestScratchpad`).  Each emitter gets its OWN
+        isolated bucket via ``scratchpad.for_emitter(name)`` — the namespace is
+        enforced by structure, so two emitters can never collide on a key.
+        Cross-cutting scalars (``budget_tier``, an observed ``veto``) live in
+        ``scratchpad.shared``.  New emitters should prefer this over ``scratch``.
     scratch:
-        Per-request scratch dict.  Emitters MAY stash private state here
-        between their own phases (e.g. a token count from PRE_DISPATCH to
-        match against POST_SESSION).  Convention: namespace your key by the
-        emitter's ``name`` (``ctx.scratch["my-emitter"] = {...}``) to avoid
-        collisions.  The dict is NOT frozen; mutation is the entire point.
+        Deprecated dict-shaped compatibility view over ``scratchpad`` (see
+        :class:`robit.core.ScratchCompatMapping`).  Emitters MAY still stash
+        private state here between their own phases — keys equal to a known
+        emitter name route to that emitter's isolated bucket; any other key
+        routes to ``scratchpad.shared``.  Retained for one release so existing
+        emitters keep working; new code should use ``scratchpad`` directly.
     """
 
     req: CanonicalRequest
@@ -109,7 +117,31 @@ class EmitContext:
     accumulated_text: str | None = None
     redactions: tuple[str, ...] = ()
     pre_dispatch_done: bool = False
-    scratch: dict[str, Any] = field(default_factory=dict)
+    scratchpad: RequestScratchpad = field(default_factory=RequestScratchpad)
+    # ``scratch`` is the deprecated dict-shaped compatibility view bound to
+    # ``scratchpad`` (resolved in ``__post_init__``).  It accepts a plain dict
+    # at construction (legacy callers seed cross-cutting keys that way) or a
+    # ready :class:`ScratchCompatMapping` (carried verbatim by
+    # :func:`dataclasses.replace`).  ``None`` (the default) means "bind a fresh
+    # view over ``scratchpad``".
+    scratch: ScratchCompatMapping = field(default=None)  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        current = self.scratch
+        if isinstance(current, ScratchCompatMapping):
+            # Carried over by dataclasses.replace — already bound to a
+            # scratchpad; re-bind defensively to THIS instance's scratchpad so
+            # the view and the typed field never diverge.
+            object.__setattr__(self, "scratch", ScratchCompatMapping(self.scratchpad))
+            return
+        view = ScratchCompatMapping(self.scratchpad)
+        if isinstance(current, dict):
+            # Legacy seed: cross-cutting keys (budget_tier, veto, ...) and/or
+            # per-emitter dicts.  Replay them through the view so routing
+            # (namespace bucket vs shared) is applied consistently.
+            for key, value in current.items():
+                view[key] = value
+        object.__setattr__(self, "scratch", view)
 
 
 class EventEmitter(Protocol):
