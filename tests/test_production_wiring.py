@@ -73,9 +73,13 @@ def _chunk(content: str | None = None, *, finish_reason: str | None = None):
 class _AsyncStream:
     """Async iterator over fabricated litellm chunks, optionally raising."""
 
-    def __init__(self, chunks, *, raise_after=None):
+    def __init__(self, chunks, *, raise_after=None, raise_exc=None):
         self._chunks = list(chunks)
         self._raise_after = raise_after
+        # The exception raised once ``raise_after`` chunks have been yielded.
+        # Defaults to a bare RuntimeError; tests that need to exercise the
+        # *retryable* failure class pass a retryable UpstreamError explicitly.
+        self._raise_exc = raise_exc
         self._yielded = 0
 
     def __aiter__(self):
@@ -90,7 +94,7 @@ class _AsyncStream:
         return self._chunks.pop(0)
 
     def _raise_after_exc(self):
-        return RuntimeError("mid-stream upstream blew up")
+        return self._raise_exc or RuntimeError("mid-stream upstream blew up")
 
 
 def _retryable(provider: str = "anthropic") -> UpstreamError:
@@ -166,12 +170,25 @@ async def test_stream_upstream_falls_through_pre_stream_on_retryable_error():
 
 @pytest.mark.asyncio
 async def test_stream_upstream_does_not_fall_through_mid_stream():
-    """Once the FIRST chunk has been yielded, a mid-stream retryable failure
+    """Once the FIRST chunk has been yielded, a mid-stream **retryable** failure
     must NOT fall through to another model — the boundary is hard. The error
-    propagates and the second model is never tried."""
-    # Stream yields one good chunk, then __anext__ raises on the 2nd pull.
+    propagates and the second model is never tried.
+
+    The mid-stream error is a genuinely RETRYABLE UpstreamError (status=529) —
+    the exact failure class the pre-stream fallback keys on. This pins the
+    boundary against the real regression hazard: a mid-stream 529 must still be
+    committed-and-raised, never used to re-open a second model (which would
+    duplicate/interleave already-yielded content). A weaker non-retryable error
+    here would not distinguish a hard boundary from a retryable-gated one."""
+    # Stream yields one good chunk, then __anext__ raises a RETRYABLE error on
+    # the 2nd pull. _wrap_error preserves an existing UpstreamError, so its
+    # status=529 survives and _is_retryable_upstream_error() would return True.
     flaky = _AsyncStream(
-        [_chunk("partial"), _chunk("never-seen")], raise_after=1
+        [_chunk("partial"), _chunk("never-seen")],
+        raise_after=1,
+        raise_exc=UpstreamError(
+            provider="anthropic", status=529, message="mid-stream overloaded"
+        ),
     )
     # Provide a perfectly good second model that MUST NOT be consulted.
     second = _AsyncStream([_chunk("from-model-b", finish_reason="stop")])
