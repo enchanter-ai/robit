@@ -123,12 +123,28 @@ class ToolCallExecuted:
 
 @dataclass(frozen=True)
 class VetoFired:
-    """The proxy pipeline vetoed this request. No tool execution happened."""
+    """The proxy pipeline vetoed this request. No tool execution happened.
+
+    G8 — this event carries the structured HTTP-451 rendering produced by
+    :meth:`robit.proxy.pipeline.VetoResult.to_http_451` (via the Wave-1
+    :func:`robit.core.verdict.render_veto_http`).  ``http_status`` /
+    ``http_headers`` / ``http_body`` are the real 451 triple, wired here at
+    the agent loop's veto handling rather than left unconnected: the Textual
+    UI (or any future HTTP frontend) renders the veto from these structured
+    fields instead of re-deriving them from the reason string.
+    """
 
     plugin: str
     reason: str
     phase: str
     pattern_id: str | None
+    http_status: int = 451
+    http_headers: dict[str, str] = field(default_factory=dict)
+    http_body: dict = field(default_factory=dict)
+
+    def to_http_451(self) -> tuple[int, dict[str, str], dict]:
+        """Return the ``(status, headers, body)`` 451 triple for this veto."""
+        return self.http_status, dict(self.http_headers), dict(self.http_body)
 
 
 @dataclass(frozen=True)
@@ -250,11 +266,19 @@ class AgentLoop:
             result = await self.dispatch_fn(req)
 
             if isinstance(result, VetoResult):
+                # G8 — render the structured 451 triple at the real call site
+                # (Wave 1 left VetoResult.to_http_451 / render_veto_http
+                # unwired because no HTTP server existed; the agent loop is the
+                # live veto consumer, so we connect it here).
+                status, headers, body = result.to_http_451()
                 yield VetoFired(
                     plugin=result.plugin,
                     reason=result.reason,
                     phase=result.phase,
                     pattern_id=result.pattern_id,
+                    http_status=status,
+                    http_headers=headers,
+                    http_body=body,
                 )
                 stop_reason = "veto"
                 break
