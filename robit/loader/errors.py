@@ -60,6 +60,46 @@ class EngineLoadError(Exception):
         return " ".join(parts)
 
 
+class TopicRegistryError(Exception):
+    """Raised when an engine's declared topics violate the central registry.
+
+    G2 boot-time cross-check. Fires when (in strict mode) an engine emits a
+    topic no one subscribes to, subscribes to a topic no one emits, or declares
+    a topic that is not registry-known. Wildcard subscriptions (``*`` /
+    ``foo.*``) and ``lifecycle.*`` subscriptions are always permitted and never
+    raise.
+
+    Attributes:
+        engine_name: The engine whose manifest tripped the check, if known.
+        topic:       The offending topic string, if a single topic is to blame.
+        kind:        ``"emit"`` or ``"subscribe"`` — which side declared it.
+        problems:    Full list of human-readable problem strings for this run.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        engine_name: str | None = None,
+        topic: str | None = None,
+        kind: str | None = None,
+        problems: list[str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.engine_name = engine_name
+        self.topic = topic
+        self.kind = kind
+        self.problems = problems or []
+
+    def __str__(self) -> str:
+        parts = [super().__str__()]
+        if self.engine_name:
+            parts.append(f"(engine: {self.engine_name!r})")
+        if self.topic:
+            parts.append(f"(topic: {self.topic!r}, kind: {self.kind})")
+        return " ".join(parts)
+
+
 class DependencyCycleError(Exception):
     """Raised when engine ``depends_on`` declarations form a cycle.
 
