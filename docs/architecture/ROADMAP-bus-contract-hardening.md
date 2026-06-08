@@ -124,11 +124,43 @@ the package's directories except read-only imports of Wave-1 core.
   one release (no-regression contract).
 - Human review + merge between Wave 1 and Wave 2.
 
-## Out of scope (logged, not closed here)
+### Wave 3 — Deferred items, now closed  ·  three agents
 
-- Collapsing the three per-request scratch buckets (audit §5 Q4) — needs its own design.
-- Pricing-table consolidation into `models-registry.json` (audit §5 Q2) — orthogonal.
-- Agent-shaped engines / `[agent]` manifest table (audit §8) — separate initiative.
-- Tier-router fallback chains (audit §6 Q5) — separate initiative.
-</content>
-</invoke>
+Originally logged as out-of-scope; closed in a third wave of three parallel worktree agents.
+
+**Package EMITTER-CONTRACTS** — `proxy/events/`, `core/context.py`, `engines/cost_ledger/`, registry
+- Scratch consolidation (audit §5 Q4): typed `RequestScratchpad` with structurally-isolated
+  `per_emitter` buckets; `EmitContext.scratch` kept as a deprecated one-release compat view;
+  the cost-ledger `score`-key abuse removed from the scratch path.
+- Pricing (audit §5 Q2, **corrected**): the audit was stale — `models-registry.json` carried
+  *no* pricing, so there were not three sources of truth, only the hardcoded
+  `_PRICE_CENTS_PER_M_TOKENS` table. Added a top-level `pricing` section (prefix-keyed,
+  `cents_per_mtok_by_prefix`) to the registry as its proper home and pointed the cost emitter
+  there; cents are identical to the old table (verified by test).
+
+**Package TIER-ROUTER** — `runtime/tier_router.py`, `proxy/upstream.py`
+- Fallback chains (audit §6 Q5), done **additively**: `route()` keeps its `str` signature (its
+  one caller, `deep_research`, is untouched); new `route_chain() -> tuple[str, ...]` returns the
+  ordered de-duped fallback list; `call_upstream` iterates it, falling through on retryable
+  errors (408/425/429/5xx/529) and failing fast on non-retryable ones.
+
+**Package AGENT-ENGINES** — `loader/manifest.py`, `engines/intent_anchor/`, `proxy/pipeline.py`
+- Agent-shaped engines (audit §8): optional `[agent]` table on `EngineManifest`
+  (`tier` + per-phase prompt paths) → `AgentSpec`; backward-compatible (`agent=None`).
+  `PipelineOptions.prompt_overlay` is the operator's additive override (appended after the
+  engine-authored prompt). Pilot wired on `intent_anchor` behind `ROBIT_INTENT_ANCHOR_AGENT`
+  + an injectable `llm_call` seam, **default OFF** — the deterministic LCS+HMM path remains the
+  default and all existing tests pass unchanged.
+
+## Follow-ups (genuinely deferred)
+
+- Wire `route_chain()` into the proxy callers + streaming fallback (`stream_upstream`).
+- Drop the `score`→`cents` bus-payload mirror once the pipeline recorder whitelists `cents`.
+- Agent-engine production enablement: live `call_upstream` wiring, cost-ledger accounting for
+  the agent call, durable `state/agent-verdicts.jsonl` audit sink, and end-to-end overlay
+  delivery through the orchestrator (§8's full audit/cost requirements).
+
+## Final tally
+
+898 (baseline) → 906 (Wave 1) → 939 (Wave 2) → **985 passed, 8 skipped** (Wave 3). +87 tests,
+0 regressions. All nine original gaps (G1–G9) plus the four deferred audit items closed.
