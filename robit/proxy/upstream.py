@@ -41,11 +41,13 @@ stable shape to render back to the client.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
+import logging
 import urllib.error
 import urllib.request
 from types import SimpleNamespace
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Sequence
 
 import litellm
 
@@ -73,6 +75,41 @@ CHATGPT_INTERNAL_USER_AGENT = "robit/0.7 (proxy-chatgpt)"
 
 # Silently drop kwargs the upstream provider doesn't understand.
 litellm.drop_params = True
+
+logger = logging.getLogger(__name__)
+
+# Default backoff (seconds) inserted between fallback attempts in a model
+# chain. Kept short — this is provider-overload smoothing, not a full retry
+# policy. A value of 0 (or a single-model chain) means no sleep happens.
+_DEFAULT_FALLBACK_BACKOFF_S = 0.25
+
+# HTTP status codes that mark an upstream failure as transient/retryable —
+# worth falling through to the next model in the chain. 529 is Anthropic's
+# "overloaded" code; 5xx are server-side; 408/429 are timeout/rate-limit.
+_RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504, 529})
+
+# LiteLLM exception classes that are retryable regardless of any status code
+# we can scrape off them. Resolved by name so a missing class in an older
+# litellm never breaks import.
+_RETRYABLE_LITELLM_EXC_NAMES = (
+    "RateLimitError",
+    "ServiceUnavailableError",
+    "InternalServerError",
+    "APIConnectionError",
+    "BadGatewayError",
+    "Timeout",
+    "APIError",  # generic transport-layer error; treated as retryable
+)
+
+_RETRYABLE_LITELLM_EXC: tuple[type[BaseException], ...] = tuple(
+    cls
+    for cls in (
+        getattr(litellm, name, None)
+        or getattr(getattr(litellm, "exceptions", None), name, None)
+        for name in _RETRYABLE_LITELLM_EXC_NAMES
+    )
+    if isinstance(cls, type) and issubclass(cls, BaseException)
+)
 
 
 # ---------------------------------------------------------------------------
@@ -111,12 +148,36 @@ class UpstreamError(Exception):
 # ---------------------------------------------------------------------------
 
 
-async def call_upstream(req: CanonicalRequest) -> CanonicalResponse:
-    """Run a non-streaming completion through LiteLLM.
+async def call_upstream(
+    req: CanonicalRequest,
+    models: Sequence[str] | None = None,
+    *,
+    backoff_s: float = _DEFAULT_FALLBACK_BACKOFF_S,
+) -> CanonicalResponse:
+    """Run a non-streaming completion through LiteLLM, with optional fallback.
 
-    The request is converted to LiteLLM (OpenAI-shaped) kwargs, dispatched
-    via ``litellm.acompletion``, and the response coerced back into a
-    :class:`~.canonical.CanonicalResponse`.
+    Parameters
+    ----------
+    req:
+        The canonical request. ``req.model`` is the primary model unless
+        *models* is supplied and non-empty (in which case *models* is the
+        ordered fallback chain and ``models[0]`` is the primary).
+    models:
+        Optional ordered fallback chain (e.g. from
+        :meth:`robit.runtime.tier_router.TierRouter.route_chain`). Each
+        model is tried in order; on a **retryable** upstream failure
+        (provider overloaded / 529 / 5xx / rate-limit / transport error)
+        the call falls through to the next model after a short backoff. A
+        **non-retryable** failure (bad request, auth, content policy) fails
+        fast without trying the rest of the chain. Exhausting the chain
+        re-raises the last :class:`UpstreamError`.
+
+        When ``None`` or a single-element chain, behaviour is byte-for-byte
+        identical to the legacy single-model path: ``req.model`` is used and
+        any error is wrapped and raised immediately.
+    backoff_s:
+        Seconds to sleep between fallback attempts. Defaults to a small
+        value; pass ``0`` to disable the sleep.
 
     ChatGPT-login routing
     ---------------------
@@ -125,11 +186,52 @@ async def call_upstream(req: CanonicalRequest) -> CanonicalResponse:
     bypass LiteLLM entirely and POST to the ChatGPT-internal endpoint
     directly via stdlib HTTP. LiteLLM has no per-request base-URL
     override for the ``chatgpt.com/backend-api/codex/responses`` route.
+    The ChatGPT-internal path does not participate in model fallback.
     """
     auth = _passthrough_auth_dict(req)
     if auth is not None and auth.get("kind") == "chatgpt-jwt":
         return await _call_chatgpt_internal(req, auth)
 
+    chain = _normalise_chain(req.model, models)
+
+    last_error: UpstreamError | None = None
+    for attempt, model_id in enumerate(chain):
+        attempt_req = req if model_id == req.model else dataclasses.replace(
+            req, model=model_id
+        )
+        try:
+            return await _call_litellm_once(attempt_req)
+        except UpstreamError as err:
+            last_error = err
+            is_last = attempt == len(chain) - 1
+            if is_last or not _is_retryable_upstream_error(err):
+                # Non-retryable, or no further models to try — fail fast /
+                # exhaust the chain. Re-raise the original error unchanged.
+                raise
+            next_model = chain[attempt + 1]
+            logger.warning(
+                "upstream fallback: model=%r failed with retryable error "
+                "[%s status=%s]; falling through to %r (attempt %d/%d)",
+                model_id,
+                err.provider,
+                err.status,
+                next_model,
+                attempt + 2,
+                len(chain),
+            )
+            if backoff_s > 0:
+                await asyncio.sleep(backoff_s)
+
+    # Unreachable: the loop always returns or raises. Guard for clarity.
+    if last_error is not None:  # pragma: no cover - defensive
+        raise last_error
+    raise UpstreamError(  # pragma: no cover - defensive
+        provider="unknown", status=None, message="empty model chain"
+    )
+
+
+async def _call_litellm_once(req: CanonicalRequest) -> CanonicalResponse:
+    """Single LiteLLM completion for one concrete model (no fallback)."""
     kwargs = _build_litellm_kwargs(req, stream=False)
     kwargs.update(_passthrough_auth_kwargs(req))
     try:
@@ -138,6 +240,57 @@ async def call_upstream(req: CanonicalRequest) -> CanonicalResponse:
         raise _wrap_error(req.model, exc) from exc
 
     return _coerce_response(resp, requested_model=req.model)
+
+
+def _normalise_chain(
+    primary_model: str, models: Sequence[str] | None
+) -> tuple[str, ...]:
+    """Return the ordered model chain to attempt, de-duped, primary first.
+
+    If *models* is falsy, the chain is just ``(primary_model,)`` so the path
+    is identical to the pre-fallback behaviour.
+    """
+    if not models:
+        return (primary_model,)
+    seen: set[str] = set()
+    chain: list[str] = []
+    for model_id in models:
+        if model_id and model_id not in seen:
+            seen.add(model_id)
+            chain.append(model_id)
+    if not chain:
+        return (primary_model,)
+    return tuple(chain)
+
+
+def _is_retryable_upstream_error(err: UpstreamError) -> bool:
+    """Decide whether *err* warrants falling through to the next model.
+
+    Detection is two-pronged:
+
+    1. **Status code** — if the wrapped error exposes an HTTP status in
+       :data:`_RETRYABLE_STATUS` (408/425/429/5xx and Anthropic's 529
+       "overloaded"), it is retryable. A status outside that set (e.g. 400
+       bad request, 401/403 auth) is explicitly *non*-retryable.
+    2. **Exception class** — when no usable status is present (``status is
+       None``), fall back to the original exception type chained on
+       ``err.__cause__`` and match it against LiteLLM's retryable classes
+       (RateLimitError, ServiceUnavailableError, InternalServerError,
+       APIConnectionError, Timeout, …).
+
+    Non-retryable by default: when we cannot positively classify an error as
+    transient we fail fast rather than burn the whole chain on a permanent
+    failure.
+    """
+    if err.status is not None:
+        return err.status in _RETRYABLE_STATUS
+
+    cause = err.__cause__
+    if cause is not None and _RETRYABLE_LITELLM_EXC and isinstance(
+        cause, _RETRYABLE_LITELLM_EXC
+    ):
+        return True
+    return False
 
 
 async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk]:

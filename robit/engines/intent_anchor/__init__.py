@@ -10,7 +10,7 @@ Emits:
   intent-anchor.drift.detected — when LCS ratio < 0.3 vs. the anchor
 """
 
-from .adapter import IntentAnchor, adapter
+from .adapter import IntentAnchor, LlmCall, adapter
 from .store import IntentAnchorStore
 from .lcs import lcs_length, lcs_ratio
 from .hmm import HMM
@@ -19,6 +19,7 @@ __all__ = [
     "IntentAnchor",
     "IntentAnchorStore",
     "HMM",
+    "LlmCall",
     "adapter",
     "lcs_length",
     "lcs_ratio",

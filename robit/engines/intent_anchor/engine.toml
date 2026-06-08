@@ -9,3 +9,13 @@ adapter = "robit.engines.intent_anchor.adapter:adapter"
 [topics]
 subscribes = ["session.start", "user.prompt.submit", "compact.requested"]
 emits = ["intent-anchor.anchor.set", "intent-anchor.drift.detected"]
+
+# Agent-shaped delegation (audit §8). OPTIONAL and DEFAULT-OFF: the agent path
+# only runs when ROBIT_INTENT_ANCHOR_AGENT=1 AND an llm_call seam is injected.
+# Otherwise the engine runs its deterministic LCS+HMM path unchanged.
+# Sonnet-tier ("executor") per §8's "ship intent-anchor first" recommendation.
+[agent]
+tier = "executor"
+
+[agent.prompts]
+post-session = "prompts/drift.md"

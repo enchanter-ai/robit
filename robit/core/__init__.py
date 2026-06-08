@@ -3,10 +3,14 @@
 from .context import (
     BudgetTier,
     DEFAULT_PHASE_TIMEOUTS_MS,
+    DegradedFinding,
+    EmitterScratch,
     LIFECYCLE_PHASES,
     LifecyclePhase,
     PhaseTimeoutMap,
     RequestContext,
+    RequestScratchpad,
+    ScratchCompatMapping,
     create_request_context,
 )
 from .events import EnchantedEvent, EventHandler, PluginAck, PluginAckStatus
@@ -42,7 +46,9 @@ __all__ = [
     "BudgetTierGate",
     "Bus",
     "DEFAULT_PHASE_TIMEOUTS_MS",
+    "DegradedFinding",
     "DroppedEvent",
+    "EmitterScratch",
     "EnchantedEvent",
     "EventHandler",
     "HandlerFailure",
@@ -59,6 +65,8 @@ __all__ = [
     "PluginAdapter",
     "PluginRegistry",
     "RequestContext",
+    "RequestScratchpad",
+    "ScratchCompatMapping",
     "SecurityVetoError",
     "TOPIC_REGISTRY",
     "TopicKind",

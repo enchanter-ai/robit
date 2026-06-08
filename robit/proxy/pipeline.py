@@ -132,12 +132,25 @@ class PipelineOptions:
         Disabling an advisory engine is fine; disabling a ``required`` engine
         raises :class:`RequiredEngineDisabledError` rather than silently
         dropping a security gate.
+    prompt_overlay:
+        Operator's additive prompt override for *agent-shaped* engines (audit
+        §8).  ``None`` (default) → no overlay.  When set, an agent-engine that
+        builds a model prompt **appends** this text *after* its own authored
+        prompt body — it never replaces it.  This is the operator layer of the
+        prompt-precedence pyramid:
+
+            framework  <  engine-author prompt (the engine's ``.md`` file)  <  operator overlay
+
+        End-user inbound requests cannot edit prompts; only the operator (the
+        caller constructing :class:`PipelineOptions`) supplies the overlay.
+        Deterministic (non-agent) engines ignore this field entirely.
     """
 
     conduct: bool = True
     conduct_rules: frozenset[str] | None = None
     engine_filter: frozenset[str] | None = None
     disabled_engines: frozenset[str] = frozenset()
+    prompt_overlay: str | None = None
 
 
 @dataclass(frozen=True)
@@ -625,6 +638,13 @@ async def run(
         session_id=ctx.session_id,
     )
     emit_ctx.scratch["budget_tier"] = ctx.budget_tier
+    # Plumb the operator's additive prompt overlay (audit §8) into the
+    # per-request scratch so an agent-shaped engine can read it.  Only set
+    # when provided — agent-engines treat a missing key the same as None
+    # (no overlay).  The overlay is APPENDED after the engine's authored
+    # prompt; it never replaces it.  See PipelineOptions.prompt_overlay.
+    if opts.prompt_overlay is not None:
+        emit_ctx.scratch["prompt_overlay"] = opts.prompt_overlay
 
     # 5. Fire PRE_DISPATCH emitters.  The built-in emitter publishes the
     #    trust-gate events here, so destructive-op-gate / cve-pattern-gate
