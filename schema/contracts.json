@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://enchanter.dev/schema/contracts.json",
+  "title": "Robit/Beholder shared wire contracts",
+  "description": "Single language-neutral source of truth for the cross-plugin wire contracts shared between robit (Python) and beholder (TypeScript). Generated Python and TS types must match these definitions; the codegen --check mode fails CI if the hand-written robit dataclasses drift from this schema. Field names, types, defaults and optionality mirror the Wave-1 final shapes in robit/core/events.py, robit/core/verdict.py and robit/protocol/jsonrpc.py exactly.",
+  "$defs": {
+    "LifecyclePhase": {
+      "title": "LifecyclePhase",
+      "description": "robit/core/context.py LifecyclePhase Literal.",
+      "type": "string",
+      "enum": [
+        "anchor",
+        "trust-gate",
+        "pre-dispatch",
+        "dispatch",
+        "post-response",
+        "post-session",
+        "cross-session"
+      ]
+    },
+    "BudgetTier": {
+      "title": "BudgetTier",
+      "description": "robit/core/context.py BudgetTier Literal.",
+      "type": "string",
+      "enum": ["HIGH", "MED", "LOW", "CRITICAL"]
+    },
+    "PluginAckStatus": {
+      "title": "PluginAckStatus",
+      "description": "robit/core/events.py PluginAckStatus Literal.",
+      "type": "string",
+      "enum": ["ack", "veto", "error"]
+    },
+    "Verdict": {
+      "title": "Verdict",
+      "description": "robit/core/verdict.py Verdict (frozen dataclass). The single structured veto representation.",
+      "type": "object",
+      "x-python-frozen": true,
+      "properties": {
+        "plugin": {
+          "type": "string",
+          "description": "Name of the engine that issued the verdict."
+        },
+        "phase": {
+          "$ref": "#/$defs/LifecyclePhase",
+          "description": "Lifecycle phase the verdict fired in."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Human-readable reason string."
+        },
+        "pattern_id": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Structured pattern identifier; null when the engine carries no pattern taxonomy."
+        },
+        "pattern_name": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Human-readable pattern name; null when unknown."
+        },
+        "severity": {
+          "type": "string",
+          "default": "veto",
+          "description": "Severity classification; defaults to 'veto' for a hard block."
+        }
+      },
+      "required": ["plugin", "phase", "reason"],
+      "additionalProperties": false
+    },
+    "EnchantedEvent": {
+      "title": "EnchantedEvent",
+      "description": "robit/core/events.py EnchantedEvent (frozen dataclass). Cross-plugin lingua franca for the in-process bus.",
+      "type": "object",
+      "x-python-frozen": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "correlation_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/LifecyclePhase"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "description": "Plugin name or 'orchestrator'."
+        },
+        "budget_tier": {
+          "$ref": "#/$defs/BudgetTier"
+        },
+        "ts": {
+          "type": "integer",
+          "description": "Milliseconds since epoch."
+        },
+        "payload": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": true,
+          "description": "Arbitrary JSON-serialisable mapping; defaults to empty object."
+        },
+        "schema_version": {
+          "type": "integer",
+          "default": 1,
+          "description": "G3 contract version (CURRENT_SCHEMA_VERSION). Decoders treat a missing field as 1."
+        },
+        "hop_count": {
+          "type": "integer",
+          "default": 0,
+          "description": "G5 cycle/depth guard. Re-publish hop count; root events start at 0."
+        }
+      },
+      "required": [
+        "id",
+        "correlation_id",
+        "session_id",
+        "phase",
+        "topic",
+        "source",
+        "budget_tier",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    "PluginAck": {
+      "title": "PluginAck",
+      "description": "robit/core/events.py PluginAck (mutable dataclass). A subscriber's response to an event.",
+      "type": "object",
+      "x-python-frozen": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/PluginAckStatus"
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "default": null
+        },
+        "derived_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnchantedEvent"
+          },
+          "default": [],
+          "description": "Events to be re-published; defaults to empty list."
+        },
+        "degraded": {
+          "type": "boolean",
+          "default": false
+        },
+        "verdict": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "G1 structured veto. Present when status == 'veto'; optional, default null."
+        },
+        "schema_version": {
+          "type": "integer",
+          "default": 1,
+          "description": "G3 contract version (see EnchantedEvent.schema_version)."
+        }
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
+    "JsonRpcErrorCode": {
+      "title": "JsonRpcErrorCode",
+      "description": "robit/protocol/jsonrpc.py ErrorCode IntEnum. Standard JSON-RPC 2.0 codes plus the robit custom -32099..-32000 reserved range.",
+      "type": "integer",
+      "x-python-enum": "ErrorCode",
+      "oneOf": [
+        { "const": -32700, "title": "PARSE_ERROR" },
+        { "const": -32600, "title": "INVALID_REQUEST" },
+        { "const": -32601, "title": "METHOD_NOT_FOUND" },
+        { "const": -32602, "title": "INVALID_PARAMS" },
+        { "const": -32603, "title": "INTERNAL_ERROR" },
+        { "const": -32099, "title": "SECURITY_VETO" },
+        { "const": -32098, "title": "VENDOR_UNAVAILABLE" },
+        { "const": -32097, "title": "SAMPLING_BOUND_EXCEEDED" },
+        { "const": -32096, "title": "TOOL_NAME_COLLISION" },
+        { "const": -32095, "title": "BUDGET_FLOOR_REFUSAL" }
+      ]
+    }
+  }
+}
