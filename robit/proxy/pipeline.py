@@ -84,6 +84,7 @@ from robit.core.events import EnchantedEvent
 from robit.core.verdict import Verdict, render_veto_http
 from robit.loader import load_engine_registry
 
+from .audit import record_veto
 from .canonical import (
     CanonicalChunk,
     CanonicalRequest,
@@ -121,10 +122,22 @@ class PipelineOptions:
     conduct_rules:
         Which conduct rules to inject when ``conduct=True``.  ``None`` →
         :data:`DEFAULT_PROXY_RULES`.
+    engine_filter:
+        Operator allowlist (G7).  ``None`` (default) → every registered engine
+        runs.  When set, only engines whose name is in the set run; all others
+        are skipped and a ``pipeline.engine.skipped`` event is emitted for each.
+    disabled_engines:
+        Operator denylist (G7).  Engines named here are skipped (with a
+        ``pipeline.engine.skipped`` event) regardless of ``engine_filter``.
+        Disabling an advisory engine is fine; disabling a ``required`` engine
+        raises :class:`RequiredEngineDisabledError` rather than silently
+        dropping a security gate.
     """
 
     conduct: bool = True
     conduct_rules: frozenset[str] | None = None
+    engine_filter: frozenset[str] | None = None
+    disabled_engines: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -475,17 +488,90 @@ def _veto_from_error(exc: SecurityVetoError) -> VetoResult:
     return VetoResult.from_verdict(verdict)
 
 
-def _build_orchestrator() -> tuple[InProcessBus, Orchestrator]:
-    """Fresh bus + orchestrator wired with the full engine registry.
+class RequiredEngineDisabledError(RuntimeError):
+    """Raised when the operator dial would drop a ``required`` security gate.
+
+    Disabling an *advisory* engine via :attr:`PipelineOptions.engine_filter`
+    or :attr:`PipelineOptions.disabled_engines` is allowed and silently skips
+    it (with a ``pipeline.engine.skipped`` event).  Disabling a *required*
+    engine would silently remove a fail-closed security gate, so the pipeline
+    refuses to build rather than running degraded — fail loud, not silent.
+    """
+
+    def __init__(self, engine: str) -> None:
+        self.engine = engine
+        super().__init__(
+            f"required engine {engine!r} cannot be disabled: dropping a "
+            "fail-closed security gate is not allowed (G7 safety). Remove it "
+            "from disabled_engines / add it to engine_filter, or make the "
+            "engine advisory in its manifest."
+        )
+
+
+def _engine_skipped(name: str, reason: str) -> EnchantedEvent:
+    """Build the ``pipeline.engine.skipped`` bus event for a filtered engine."""
+    return build_event(
+        correlation_id="",
+        session_id="",
+        phase="trust-gate",
+        topic="pipeline.engine.skipped",
+        source="proxy-pipeline",
+        budget_tier="always",
+        payload={"engine": name, "reason": reason},
+    )
+
+
+def _apply_engine_dial(
+    registry,
+    opts: PipelineOptions,
+) -> tuple[dict, list[EnchantedEvent]]:
+    """Apply the operator dial (G7) to *registry*.
+
+    Returns the filtered registry plus a list of ``pipeline.engine.skipped``
+    events (one per dropped engine) for the caller to publish on the bus once
+    it exists.
+
+    Safety: a ``required`` engine that the dial would drop raises
+    :class:`RequiredEngineDisabledError` rather than silently removing a
+    security gate.  Advisory engines drop quietly.
+    """
+    if opts.engine_filter is None and not opts.disabled_engines:
+        return dict(registry), []
+
+    kept: dict = {}
+    skipped: list[EnchantedEvent] = []
+    for name, adapter in registry.items():
+        denied = name in opts.disabled_engines
+        not_allowed = opts.engine_filter is not None and name not in opts.engine_filter
+        if denied or not_allowed:
+            if getattr(adapter, "required", False):
+                raise RequiredEngineDisabledError(name)
+            reason = "disabled" if denied else "not-in-filter"
+            skipped.append(_engine_skipped(name, reason))
+            continue
+        kept[name] = adapter
+    return kept, skipped
+
+
+def _build_orchestrator(
+    opts: PipelineOptions = PipelineOptions(),
+) -> tuple[InProcessBus, Orchestrator, list[EnchantedEvent]]:
+    """Fresh bus + orchestrator wired with the (optionally filtered) registry.
 
     Failure to load the registry is fatal — every proxy request needs the
     enforcement pipeline, and silently running without it would violate the
     enforcement contract.
+
+    The operator dial (G7) is applied here: engines excluded by
+    ``opts.engine_filter`` / ``opts.disabled_engines`` are dropped from the
+    running registry.  The returned ``skipped`` events are published by the
+    caller once the recorder is subscribed so they show up on the bus tap.
     """
     registry = load_engine_registry()
+    registry, skipped = _apply_engine_dial(registry, opts)
     bus = InProcessBus()
     orch = Orchestrator(OrchestratorConfig(registry=registry, bus=bus))
-    return bus, orch
+    return bus, orch, skipped
 
 
 # ---------------------------------------------------------------------------
@@ -511,8 +597,10 @@ async def run(
         else req
     )
 
-    # 2. Fresh bus + orchestrator, per-request isolation.
-    bus, orch = _build_orchestrator()
+    # 2. Fresh bus + orchestrator, per-request isolation.  Applies the
+    #    operator dial (G7); raises RequiredEngineDisabledError up-front if a
+    #    required security gate would be dropped.
+    bus, orch, skipped = _build_orchestrator(opts)
     recorder = _BusRecorder()
 
     async def _record(event: EnchantedEvent):
@@ -520,6 +608,10 @@ async def run(
         return None
 
     bus.subscribe("*", _record)
+
+    # Announce any engines the operator dialed off so the skip is observable.
+    for ev in skipped:
+        await bus.publish(ev.topic, ev)
 
     # 3. Build the request context.
     ctx = create_request_context(user_prompt=_prompt_summary(effective_req))
@@ -565,7 +657,17 @@ async def run(
     try:
         await orch.run(ctx, dispatch)
     except SecurityVetoError as exc:
-        return _veto_from_error(exc)
+        veto = _veto_from_error(exc)
+        # G8 — durable audit of every veto, sourced from the structured
+        # Verdict.  Best-effort: a write failure never blocks the response.
+        record_veto(
+            veto.verdict
+            or Verdict.from_reason(
+                plugin=veto.plugin, phase=veto.phase, reason=veto.reason
+            ),
+            correlation_id=ctx.correlation_id,
+        )
+        return veto
 
     resp: CanonicalResponse = captured["resp"]
     return PipelineResult(response=resp, fired=tuple(recorder.observations))
@@ -609,7 +711,7 @@ async def stream(
         else req
     )
 
-    bus, orch = _build_orchestrator()
+    bus, orch, skipped = _build_orchestrator(opts)
     recorder = _BusRecorder()
 
     async def _record(event: EnchantedEvent):
@@ -617,6 +719,9 @@ async def stream(
         return None
 
     bus.subscribe("*", _record)
+
+    for ev in skipped:
+        await bus.publish(ev.topic, ev)
 
     ctx = create_request_context(user_prompt=_prompt_summary(effective_req))
 
@@ -642,6 +747,14 @@ async def stream(
     # Inspect ack state for each required trust-gate plugin.
     veto = _check_trust_gate_veto(bus, ctx, orch)
     if veto is not None:
+        # G8 — durable audit of the streaming-path veto (structured Verdict).
+        record_veto(
+            veto.verdict
+            or Verdict.from_reason(
+                plugin=veto.plugin, phase=veto.phase, reason=veto.reason
+            ),
+            correlation_id=ctx.correlation_id,
+        )
         return veto
 
     return _stream_body(bus, orch, ctx, effective_req, recorder, emitters, emit_ctx)
@@ -854,6 +967,7 @@ __all__ = [
     "BusObservation",
     "PipelineOptions",
     "PipelineResult",
+    "RequiredEngineDisabledError",
     "VetoResult",
     "run",
     "stream",

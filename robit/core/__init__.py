@@ -11,6 +11,17 @@ from .context import (
 )
 from .events import EnchantedEvent, EventHandler, PluginAck, PluginAckStatus
 from .verdict import Verdict, render_veto_http
+from .topics import (
+    TOPIC_REGISTRY,
+    TopicKind,
+    TopicOwner,
+    TopicSpec,
+    all_emitted_topics,
+    get_topic,
+    is_known_topic,
+    is_lifecycle_subscription,
+    is_wildcard,
+)
 from .plugin import BudgetTierGate, PluginAdapter, PluginRegistry
 from .bus import (
     Bus,
@@ -49,7 +60,16 @@ __all__ = [
     "PluginRegistry",
     "RequestContext",
     "SecurityVetoError",
+    "TOPIC_REGISTRY",
+    "TopicKind",
+    "TopicOwner",
+    "TopicSpec",
     "Verdict",
+    "all_emitted_topics",
     "create_request_context",
+    "get_topic",
+    "is_known_topic",
+    "is_lifecycle_subscription",
+    "is_wildcard",
     "render_veto_http",
 ]

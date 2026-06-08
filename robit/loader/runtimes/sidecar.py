@@ -178,6 +178,16 @@ class SidecarAdapter:
         self.required: bool = False
         self.topics: PluginTopics = PluginTopics(subscribes=(), emits=())
         self.budget_tier: str = "always"
+        # G4 — the topic set declared in the *manifest* (set by
+        # load_sidecar_adapter from EngineManifest.topics). The single source of
+        # truth a running sidecar MUST NOT widen at runtime. When None, no
+        # manifest constraint is known (adapter constructed directly, e.g. in a
+        # unit test) and the initialize-reply cross-check is skipped. An empty
+        # declared set (subscribes=()/emits=()) is treated as "unconstrained"
+        # for that axis so a manifest that declares no topics does not force the
+        # sidecar to report none.
+        self._manifest_subscribes: tuple[str, ...] | None = None
+        self._manifest_emits: tuple[str, ...] | None = None
         # Wave 13.3 — set by load_sidecar_adapter() from the manifest, NOT by
         # the subprocess. The manifest is the single source of truth: a
         # subprocess does not get to override the parallelism contract its
@@ -204,17 +214,41 @@ class SidecarAdapter:
         """Eagerly spawn + initialize the subprocess. Optional; on_phase will lazy-init."""
         await self._ensure_initialized()
 
+    def _fail_ack(self, reason: str) -> PluginAck:
+        """Coerce a sidecar fault into a PluginAck, honouring fail-open vs. fail-closed.
+
+        G4 — the timeout/crash/protocol/init coercion is **conditional on
+        ``self.required``** (ADR-001 fail-open vs. fail-closed):
+
+        * REQUIRED sidecar (``required=True``) → fail **closed**: return a
+          ``status="veto"`` ack so a crashing security gate cannot be bypassed.
+        * ADVISORY sidecar (``required=False``) → fail **open**: return a
+          ``status="error", degraded=True`` ack so a flaky advisory engine does
+          not block the request — the degradation is recorded, not enforced.
+
+        Both carry ``degraded=True`` so the context degraded-findings surface
+        the fault either way.
+        """
+        if self.required:
+            return PluginAck(status="veto", reason=reason, degraded=True)
+        return PluginAck(status="error", reason=reason, degraded=True)
+
     async def on_phase(self, event: EnchantedEvent, ctx: RequestContext) -> PluginAck:
-        """Send an on_phase request to the sidecar; coerce any error into a veto ack."""
+        """Send an on_phase request to the sidecar; coerce any fault into an ack.
+
+        The fault → ack coercion is conditional on ``self.required`` (see
+        :meth:`_fail_ack`): required sidecars fail closed (veto), advisory
+        sidecars fail open (error + degraded).
+        """
         if self._closed:
-            return PluginAck(status="veto", reason="sidecar:closed", degraded=True)
+            return self._fail_ack("sidecar:closed")
         if self._failed:
-            return PluginAck(status="veto", reason="sidecar:failed", degraded=True)
+            return self._fail_ack("sidecar:failed")
 
         try:
             await self._ensure_initialized()
         except SidecarBaseError_alias as exc:
-            return PluginAck(status="veto", reason=f"sidecar:init:{exc}", degraded=True)
+            return self._fail_ack(f"sidecar:init:{exc}")
 
         params = {
             "event": _event_to_dict(event),
@@ -224,11 +258,11 @@ class SidecarAdapter:
             result = await self._request("on_phase", params)
         except SidecarTimeoutError:
             # Subprocess already killed inside _request on timeout.
-            return PluginAck(status="veto", reason="sidecar:timeout", degraded=True)
+            return self._fail_ack("sidecar:timeout")
         except SidecarCrashError as exc:
-            return PluginAck(status="veto", reason=f"sidecar:crash:{exc}", degraded=True)
+            return self._fail_ack(f"sidecar:crash:{exc}")
         except SidecarProtocolError as exc:
-            return PluginAck(status="veto", reason=f"sidecar:protocol:{exc}", degraded=True)
+            return self._fail_ack(f"sidecar:protocol:{exc}")
 
         # Validate derived events BEFORE _parse_ack rebuilds them as
         # EnchantedEvent instances. Rejection drops only the offending event;
@@ -474,14 +508,69 @@ class SidecarAdapter:
                 "initialize: topics must be {subscribes:[str], emits:[str]}"
             )
 
+        reported_subscribes = tuple(topics["subscribes"])
+        reported_emits = tuple(topics["emits"])
+
+        # G4 — trust boundary: a running sidecar MUST NOT be able to widen the
+        # topic set its own manifest declared. Cross-check the initialize-reply
+        # topics against the manifest BEFORE adopting them. If the sidecar
+        # claims any subscribe/emit topic not present in the manifest, fail
+        # initialization. An empty manifest axis means "unconstrained" (skip)
+        # so a topic-less manifest doesn't force the sidecar to report none;
+        # a None axis means no manifest was plumbed in (direct construction).
+        self._check_reported_topics_subset(
+            reported_subscribes, reported_emits,
+        )
+
         self.name = name
         self.phases = tuple(phases)
         self.required = required
         self.budget_tier = budget_tier
         self.topics = PluginTopics(
-            subscribes=tuple(topics["subscribes"]),
-            emits=tuple(topics["emits"]),
+            subscribes=reported_subscribes,
+            emits=reported_emits,
         )
+
+    def _check_reported_topics_subset(
+        self,
+        reported_subscribes: tuple[str, ...],
+        reported_emits: tuple[str, ...],
+    ) -> None:
+        """Reject an initialize-reply that widens the manifest's topic set.
+
+        Raises :class:`SidecarInitError` when the running sidecar reports a
+        subscribe or emit topic that is not in its manifest-declared set. Each
+        axis is enforced only when the manifest declared a non-empty set for
+        that axis (an empty/None axis is treated as unconstrained — see
+        ``__init__``).
+        """
+        violations: list[str] = []
+
+        declared_subs = self._manifest_subscribes
+        if declared_subs:
+            extra_subs = [t for t in reported_subscribes if t not in declared_subs]
+            if extra_subs:
+                violations.append(
+                    f"subscribes {sorted(set(extra_subs))!r} not in manifest "
+                    f"{sorted(declared_subs)!r}"
+                )
+
+        declared_emits = self._manifest_emits
+        if declared_emits:
+            extra_emits = [t for t in reported_emits if t not in declared_emits]
+            if extra_emits:
+                violations.append(
+                    f"emits {sorted(set(extra_emits))!r} not in manifest "
+                    f"{sorted(declared_emits)!r}"
+                )
+
+        if violations:
+            raise SidecarInitError(
+                "sidecar reported topics exceeding its manifest "
+                "(a sidecar must not widen its declared topic set at runtime): "
+                + "; ".join(violations),
+                stderr_tail=tuple(self._stderr_ring),
+            )
 
     # ------------------------------------------------------------------
     # Internal — request/response
@@ -706,4 +795,17 @@ def load_sidecar_adapter(manifest: Any) -> SidecarAdapter:
     )
     # Wave 13.3 — surface from manifest, not from the subprocess handshake.
     adapter.concurrent_safe = bool(getattr(manifest, "concurrent_safe", False))
+    # G4 — seed `required` from the manifest up front. The handshake re-sets it
+    # from the subprocess reply, but seeding it here means a REQUIRED sidecar
+    # that times out or crashes *during initialize* (before the reply lands)
+    # still fails CLOSED (veto) rather than open — the manifest, not the
+    # uninitialised default, decides fail-open vs. fail-closed.
+    adapter.required = bool(getattr(manifest, "required", False))
+    # G4 — record the manifest-declared topic set so the initialize handshake
+    # can reject a sidecar that tries to widen it at runtime. The manifest is
+    # the single source of truth.
+    manifest_topics = getattr(manifest, "topics", None)
+    if manifest_topics is not None:
+        adapter._manifest_subscribes = tuple(manifest_topics.subscribes)
+        adapter._manifest_emits = tuple(manifest_topics.emits)
     return adapter

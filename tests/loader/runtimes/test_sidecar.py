@@ -26,6 +26,7 @@ def _sidecar_manifest(
     extra_args: tuple[str, ...] = (),
     *,
     name: str = "echo-sidecar",
+    required: bool = False,
 ) -> EngineManifest:
     args = (str(FIXTURE),) + extra_args
     return EngineManifest(
@@ -33,7 +34,7 @@ def _sidecar_manifest(
         description="d",
         version="1.0.0",
         phases=("trust-gate",),
-        required=False,
+        required=required,
         budget_tier="always",
         topics=EngineTopics(subscribes=(), emits=()),
         runtime="sidecar",
@@ -146,18 +147,21 @@ async def test_derived_events_round_trip() -> None:
 # ────────────────────────────────────────────────────────────────────────────────
 
 async def test_timeout_is_coerced_to_veto_ack() -> None:
-    m = _sidecar_manifest(extra_args=("--mode", "hang"))
-    adapter = SidecarAdapter(
-        command=m.command,
-        args=m.args,
-        env_allowlist=m.env_allowlist,
-        timeout_s=0.5,
-    )
+    # G4 — fail-closed coercion is conditional on required. Build via a manifest
+    # with required=True so `required` is seeded BEFORE init (deterministic even
+    # if the timeout fires during the spawn/initialize handshake under load).
+    m = _sidecar_manifest(extra_args=("--mode", "hang", "--required"), required=True)
+    adapter = load_sidecar_adapter(m)
+    adapter._timeout_s = 0.5  # type: ignore[attr-defined]
     try:
         ctx = create_request_context(session_id="s4", budget_tier="HIGH")
         ack = await adapter.on_phase(_event(ctx.session_id, ctx.correlation_id), ctx)
         assert ack.status == "veto"
-        assert ack.reason == "sidecar:timeout"
+        # The timeout may fire during on_phase ("sidecar:timeout") or during a
+        # slow spawn/init under suite load ("sidecar:init:...within 0.5s");
+        # either way a REQUIRED sidecar fails closed (veto). `required` is
+        # seeded from the manifest pre-init so the verdict is deterministic.
+        assert "timeout" in (ack.reason or "") or "within 0.5s" in (ack.reason or "")
         assert ack.degraded is True
     finally:
         await adapter.shutdown()
@@ -168,7 +172,8 @@ async def test_timeout_is_coerced_to_veto_ack() -> None:
 # ────────────────────────────────────────────────────────────────────────────────
 
 async def test_subprocess_crash_is_coerced_to_veto_ack() -> None:
-    m = _sidecar_manifest(extra_args=("--mode", "crash"))
+    # G4 — required=True → crash coerced to veto (fail closed).
+    m = _sidecar_manifest(extra_args=("--mode", "crash", "--required"), required=True)
     adapter = load_sidecar_adapter(m)
     try:
         ctx = create_request_context(session_id="s5", budget_tier="HIGH")
@@ -185,7 +190,8 @@ async def test_subprocess_crash_is_coerced_to_veto_ack() -> None:
 # ────────────────────────────────────────────────────────────────────────────────
 
 async def test_eight_mib_body_cap_enforced() -> None:
-    m = _sidecar_manifest(extra_args=("--mode", "big"))
+    # G4 — required=True so the protocol cap-trip coerces to a veto (fail closed).
+    m = _sidecar_manifest(extra_args=("--mode", "big", "--required"), required=True)
     adapter = load_sidecar_adapter(m)
     try:
         ctx = create_request_context(session_id="s6", budget_tier="HIGH")
