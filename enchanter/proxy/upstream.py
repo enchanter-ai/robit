@@ -17,6 +17,38 @@ variable(s) before calling :func:`call_upstream` or
 * Gemini:    ``GEMINI_API_KEY`` (or ``GOOGLE_API_KEY``)
 * Others:    see https://docs.litellm.ai/docs/providers
 
+Pass-through auth (Wave 16.1)
+-----------------------------
+When the proxy server is started with ``--passthrough-auth`` the inbound
+HTTP auth header is captured into ``CanonicalRequest.metadata`` under
+two reserved keys:
+
+* ``_enchanter_passthrough_auth`` (bool) — flips the kwarg-building
+  branch below.
+* ``_enchanter_inbound_auth`` (dict) — ``{kind, header_name, value}``
+  describing the captured credential.
+
+Both keys are **scrubbed from the metadata bag** before LiteLLM sees the
+request kwargs, so they never leak into the upstream JSON body.  The
+mapping from ``kind`` to LiteLLM kwargs is:
+
+================  ============================================================
+kind              LiteLLM kwargs
+================  ============================================================
+anthropic-api-key ``api_key=<token>``
+anthropic-oauth   ``api_key="sk-ant-placeholder"`` +
+                  ``extra_headers={"Authorization": "Bearer <token>"}``
+openai-bearer     ``api_key=<token>``
+gemini-api-key    ``api_key=<token>``
+================  ============================================================
+
+Honesty note: LiteLLM (v1.x) accepts ``extra_headers`` and forwards the
+mapping verbatim on the outbound HTTP call.  Anthropic's OAuth flow
+nonetheless requires LiteLLM's own auth validator to see a value
+matching the ``sk-ant-...`` shape — hence the placeholder ``api_key``
+when forwarding an OAuth bearer.  The actual auth the upstream sees is
+the ``Authorization: Bearer`` header from ``extra_headers``.
+
 The model string carried on :class:`~.canonical.CanonicalRequest.model` is
 forwarded verbatim; LiteLLM picks the provider from its prefix (e.g.
 ``anthropic/claude-3-5-sonnet-20241022``, ``gpt-4o-mini``,
@@ -41,6 +73,7 @@ stable shape to render back to the client.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, AsyncIterator
 
 import litellm
@@ -58,6 +91,24 @@ from .canonical import (
 
 # Silently drop kwargs the upstream provider doesn't understand.
 litellm.drop_params = True
+
+_log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Pass-through auth metadata keys (Wave 16.1).
+#
+# These keys ride on ``CanonicalRequest.metadata`` from the server to this
+# module and are scrubbed from the metadata bag before LiteLLM sees the
+# kwargs.  Never let either key reach litellm.acompletion.
+# ---------------------------------------------------------------------------
+
+_PASSTHROUGH_FLAG_KEY: str = "_enchanter_passthrough_auth"
+_INBOUND_AUTH_KEY: str = "_enchanter_inbound_auth"
+_INTERNAL_METADATA_KEYS: frozenset[str] = frozenset(
+    {_PASSTHROUGH_FLAG_KEY, _INBOUND_AUTH_KEY}
+)
+_OAUTH_PLACEHOLDER_API_KEY: str = "sk-ant-placeholder"
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +191,15 @@ async def stream_upstream(req: CanonicalRequest) -> AsyncIterator[CanonicalChunk
 
 
 def _build_litellm_kwargs(req: CanonicalRequest, *, stream: bool) -> dict[str, Any]:
-    """Translate a :class:`CanonicalRequest` into LiteLLM kwargs."""
+    """Translate a :class:`CanonicalRequest` into LiteLLM kwargs.
+
+    Wave 16.1: when ``metadata["_enchanter_passthrough_auth"]`` is True
+    and ``metadata["_enchanter_inbound_auth"]`` carries a recognised
+    credential descriptor, the auth is forwarded via ``api_key`` /
+    ``extra_headers`` kwargs.  Both internal metadata keys are stripped
+    before the ``metadata`` bag is handed to LiteLLM, so the credential
+    never reaches the upstream JSON body.
+    """
     messages: list[dict[str, Any]] = []
 
     if req.system:
@@ -167,11 +226,76 @@ def _build_litellm_kwargs(req: CanonicalRequest, *, stream: bool) -> dict[str, A
         kwargs["tools"] = [_tool_to_litellm(t) for t in req.tools]
     if req.tool_choice is not None:
         kwargs["tool_choice"] = _tool_choice_to_litellm(req.tool_choice)
+
+    # --- Wave 16.1: pass-through auth + metadata scrubbing -----------------
+    passthrough_flag = bool(req.metadata.get(_PASSTHROUGH_FLAG_KEY)) if req.metadata else False
+    inbound_auth = req.metadata.get(_INBOUND_AUTH_KEY) if req.metadata else None
+
+    if passthrough_flag:
+        auth_kwargs = _auth_kwargs_for_inbound(inbound_auth, model=req.model)
+        kwargs.update(auth_kwargs)
+
+    # Hand LiteLLM a *scrubbed* metadata bag — never let the internal keys
+    # ride into the upstream request body.
     if req.metadata:
-        # LiteLLM accepts a metadata bag for routing/logging hints.
-        kwargs["metadata"] = dict(req.metadata)
+        public_metadata = {
+            k: v for k, v in req.metadata.items() if k not in _INTERNAL_METADATA_KEYS
+        }
+        if public_metadata:
+            kwargs["metadata"] = public_metadata
 
     return kwargs
+
+
+def _auth_kwargs_for_inbound(
+    inbound_auth: Any,
+    *,
+    model: str,
+) -> dict[str, Any]:
+    """Map an inbound-auth descriptor to LiteLLM kwargs.
+
+    Returns ``{}`` (and logs a warning) when no recognisable descriptor
+    is present — that falls back to the env-var auth path.
+    """
+    if not isinstance(inbound_auth, dict):
+        _log.warning(
+            "proxy passthrough_auth enabled but no inbound auth captured "
+            "for model %r; falling back to env-var provider auth.",
+            model,
+        )
+        return {}
+
+    kind = inbound_auth.get("kind")
+    value = inbound_auth.get("value")
+    if not isinstance(kind, str) or not isinstance(value, str) or not value:
+        _log.warning(
+            "proxy passthrough_auth: malformed inbound auth descriptor "
+            "(kind=%r, has-value=%s); falling back to env-var auth.",
+            kind, bool(value),
+        )
+        return {}
+
+    if kind == "anthropic-api-key":
+        return {"api_key": value}
+    if kind == "anthropic-oauth":
+        # LiteLLM's Anthropic adapter rejects None api_key but forwards
+        # extra_headers verbatim; the placeholder satisfies the validator
+        # while the Authorization header carries the real OAuth bearer.
+        return {
+            "api_key": _OAUTH_PLACEHOLDER_API_KEY,
+            "extra_headers": {"Authorization": f"Bearer {value}"},
+        }
+    if kind == "openai-bearer":
+        return {"api_key": value}
+    if kind == "gemini-api-key":
+        return {"api_key": value}
+
+    _log.warning(
+        "proxy passthrough_auth: unknown inbound auth kind %r; "
+        "falling back to env-var auth.",
+        kind,
+    )
+    return {}
 
 
 def _message_to_litellm(msg: Any) -> list[dict[str, Any]]:
@@ -535,4 +659,13 @@ __all__ = [
     "UpstreamError",
     "call_upstream",
     "stream_upstream",
+    # Wave 16.1 — exported so server.py can stamp them consistently.
+    "PASSTHROUGH_FLAG_KEY",
+    "INBOUND_AUTH_KEY",
 ]
+
+
+# Public aliases for the metadata keys (server.py imports these to avoid
+# string drift).  Wave 16.3 may also consume them.
+PASSTHROUGH_FLAG_KEY = _PASSTHROUGH_FLAG_KEY
+INBOUND_AUTH_KEY = _INBOUND_AUTH_KEY

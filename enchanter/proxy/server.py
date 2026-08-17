@@ -41,12 +41,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import replace
 from typing import Any, AsyncIterator
 from urllib.parse import parse_qs, urlparse
 
 from . import fastpath
 from .adapters import AdapterParseError, AnthropicAdapter, GeminiAdapter, OpenAIAdapter
 from .canonical import CanonicalChunk, CanonicalRequest, CanonicalResponse
+from .upstream import INBOUND_AUTH_KEY, PASSTHROUGH_FLAG_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +115,49 @@ _FAMILY_ERROR_ENVELOPE = {
 
 
 # ---------------------------------------------------------------------------
+# Wave 16.1 — inbound auth header extraction.
+#
+# Returns a descriptor dict (``{"kind": str, "value": str}``) matching the
+# shape expected by ``upstream._auth_kwargs_for_inbound``.  When no
+# recognisable credential is present we return ``None`` — the env-var auth
+# path then takes over inside LiteLLM.
+#
+# Header keys arrive lower-cased from the HTTP parser.  The four supported
+# kinds are: ``anthropic-api-key``, ``anthropic-oauth``, ``openai-bearer``,
+# ``gemini-api-key``.
+# ---------------------------------------------------------------------------
+
+
+def _extract_inbound_auth(
+    headers: dict[str, str], family: str
+) -> dict[str, str] | None:
+    if family == "anthropic":
+        # OAuth bearer takes precedence over x-api-key when both are present.
+        auth_hdr = headers.get("authorization", "")
+        if auth_hdr.lower().startswith("bearer "):
+            token = auth_hdr[7:].strip()
+            if token:
+                return {"kind": "anthropic-oauth", "value": token}
+        api_key = headers.get("x-api-key", "").strip()
+        if api_key:
+            return {"kind": "anthropic-api-key", "value": api_key}
+        return None
+    if family == "openai":
+        auth_hdr = headers.get("authorization", "")
+        if auth_hdr.lower().startswith("bearer "):
+            token = auth_hdr[7:].strip()
+            if token:
+                return {"kind": "openai-bearer", "value": token}
+        return None
+    if family == "gemini":
+        api_key = headers.get("x-goog-api-key", "").strip()
+        if api_key:
+            return {"kind": "gemini-api-key", "value": api_key}
+        return None
+    return None
+
+
+# ---------------------------------------------------------------------------
 # ProxyServer.
 # ---------------------------------------------------------------------------
 
@@ -151,11 +196,16 @@ class ProxyServer:
         *,
         accept: frozenset[str] = frozenset({"anthropic", "openai", "gemini"}),
         conduct: bool = True,
+        passthrough_auth: bool = False,
     ) -> None:
         self.host = host
         self.port = port
         self.accept = frozenset(accept)
         self.conduct = conduct
+        # Wave 16.1 — when True, capture inbound auth headers and signal
+        # upstream.call_upstream to forward them via LiteLLM kwargs
+        # (instead of relying on operator-set provider env vars).
+        self.passthrough_auth = passthrough_auth
         self._server: asyncio.base_events.Server | None = None
 
     # ------------------------------------------------------------------
@@ -308,6 +358,22 @@ class ProxyServer:
                 content_type="application/json",
             )
             return
+
+        # 3b. Wave 16.1 — capture inbound auth header for optional
+        #     pass-through to the upstream provider.  We stash it on
+        #     CanonicalRequest.metadata; upstream.call_upstream reads and
+        #     scrubs both keys before LiteLLM sees the kwargs.
+        inbound_auth = _extract_inbound_auth(headers, family)
+        extra_meta: dict[str, Any] = {}
+        if inbound_auth is not None:
+            extra_meta[INBOUND_AUTH_KEY] = inbound_auth
+        if self.passthrough_auth:
+            extra_meta[PASSTHROUGH_FLAG_KEY] = True
+        if extra_meta:
+            canonical_req = replace(
+                canonical_req,
+                metadata={**canonical_req.metadata, **extra_meta},
+            )
 
         # 4. Resolve per-request conduct override (?conduct=off).
         per_request_conduct = self._resolve_conduct(path)
