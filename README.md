@@ -2,11 +2,18 @@
 
 ## Installation
 
+> **Not published to PyPI.** `enchanter-agent` is unclaimed on the public
+> PyPI registry (404) — do **not** run `pip install enchanter-agent`, it
+> will not resolve to this project. Build from source in this repo
+> instead:
+
 ```bash
-pip install enchanter-agent
+git clone https://github.com/enchanter-ai/robit.git
+cd robit
+pip install -e .
 ```
 
-The `anthropic` SDK is a regular (non-optional) dependency, so `pip install enchanter-agent` installs it automatically. If you want to use just the mock client in a test environment without network access, the package still imports correctly — `MockLlmClient` has no `anthropic` dep at import time.
+The `anthropic` SDK is a regular (non-optional) dependency, so `pip install -e .` installs it automatically. If you want to use just the mock client in a test environment without network access, the package still imports correctly — `MockLlmClient` has no `anthropic` dep at import time.
 
 Enforcement-first MCP-aware agent runtime. Python port of the TypeScript MCP client at `client/enchanter/`, with two layers added:
 
