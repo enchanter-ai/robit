@@ -6,11 +6,18 @@
 
 ## Installation
 
+> **Not published to PyPI.** The bare name `robit` on the public PyPI
+> registry belongs to an unrelated project ("Chronological Automation
+> Service Framework" by stratusadv) — do **not** run `pip install robit`.
+> Build from source in this repo instead:
+
 ```bash
-pip install robit
+git clone https://github.com/enchanter-ai/robit.git
+cd robit
+pip install -e .
 ```
 
-The `anthropic` SDK is a regular (non-optional) dependency, so `pip install robit` installs it automatically. If you want to use just the mock client in a test environment without network access, the package still imports correctly — `MockLlmClient` has no `anthropic` dep at import time.
+The `anthropic` SDK is a regular (non-optional) dependency, so `pip install -e .` installs it automatically. If you want to use just the mock client in a test environment without network access, the package still imports correctly — `MockLlmClient` has no `anthropic` dep at import time.
 
 Enforcement-first Python coding-agent CLI. Every LLM turn rides a 7-phase lifecycle with conduct injection + engine vetoes + secret-mask. Every tool call (`bash`, `file_write`, `file_edit`, …) runs through the same engines before execution.
 
