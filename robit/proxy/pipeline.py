@@ -83,6 +83,8 @@ from robit.core.bus import build_event
 from robit.core.events import EnchantedEvent
 from robit.loader import load_engine_registry
 
+from ._veto_audit import record_veto
+from .attest import attest_decision
 from .canonical import (
     CanonicalChunk,
     CanonicalRequest,
@@ -538,9 +540,38 @@ async def run(
     try:
         await orch.run(ctx, dispatch)
     except SecurityVetoError as exc:
-        return _veto_from_error(exc)
+        veto = _veto_from_error(exc)
+        await record_veto(
+            correlation_id=ctx.correlation_id,
+            engine=veto.plugin,
+            phase=veto.phase,
+            reason=veto.reason,
+            pattern_id=veto.pattern_id,
+            pattern_name=veto.pattern_name,
+            http_status=451,
+        )
+        await attest_decision(
+            effective_req,
+            correlation_id=ctx.correlation_id,
+            session_id=ctx.session_id,
+            decision="veto",
+            engine=veto.plugin,
+            phase=veto.phase,
+            reason=veto.reason,
+            pattern_id=veto.pattern_id,
+            http_status=451,
+        )
+        return veto
 
     resp: CanonicalResponse = captured["resp"]
+    await attest_decision(
+        effective_req,
+        correlation_id=ctx.correlation_id,
+        session_id=ctx.session_id,
+        decision="pass",
+        phase="post-session",
+        http_status=200,
+    )
     return PipelineResult(response=resp, fired=tuple(recorder.observations))
 
 
@@ -615,6 +646,26 @@ async def stream(
     # Inspect ack state for each required trust-gate plugin.
     veto = _check_trust_gate_veto(bus, ctx, orch)
     if veto is not None:
+        await record_veto(
+            correlation_id=ctx.correlation_id,
+            engine=veto.plugin,
+            phase=veto.phase,
+            reason=veto.reason,
+            pattern_id=veto.pattern_id,
+            pattern_name=veto.pattern_name,
+            http_status=451,
+        )
+        await attest_decision(
+            effective_req,
+            correlation_id=ctx.correlation_id,
+            session_id=ctx.session_id,
+            decision="veto",
+            engine=veto.plugin,
+            phase=veto.phase,
+            reason=veto.reason,
+            pattern_id=veto.pattern_id,
+            http_status=451,
+        )
         return veto
 
     return _stream_body(bus, orch, ctx, effective_req, recorder, emitters, emit_ctx)
@@ -790,6 +841,22 @@ async def _stream_body(
                 # Phase timeout from a required plugin is fatal; surface as
                 # a synthetic veto so the caller's consumer (Agent E) can
                 # close the stream cleanly.  Wave 3 may differentiate.
+                await record_veto(
+                    correlation_id=ctx.correlation_id,
+                    engine=missing_required[0],
+                    phase=phase,
+                    reason="phase-timeout: required plugin never acked",
+                    mode="mid-stream",
+                )
+                await attest_decision(
+                    req,
+                    correlation_id=ctx.correlation_id,
+                    session_id=ctx.session_id,
+                    decision="veto",
+                    engine=missing_required[0],
+                    phase=phase,
+                    reason="phase-timeout: required plugin never acked",
+                )
                 return
 
             # Veto check.
@@ -799,7 +866,34 @@ async def _stream_body(
                     # Mid-stream veto is not possible at trust-gate because
                     # we've already cleared it; could only happen for a
                     # required plugin on a later phase.  Close the stream.
+                    await record_veto(
+                        correlation_id=ctx.correlation_id,
+                        engine=p,
+                        phase=phase,
+                        reason=a.reason or "veto",
+                        mode="mid-stream",
+                    )
+                    await attest_decision(
+                        req,
+                        correlation_id=ctx.correlation_id,
+                        session_id=ctx.session_id,
+                        decision="veto",
+                        engine=p,
+                        phase=phase,
+                        reason=a.reason or "veto",
+                    )
                     return
+
+        # All phases completed without a veto — attest the pass so the
+        # liveness heartbeat covers streaming traffic too.
+        await attest_decision(
+            req,
+            correlation_id=ctx.correlation_id,
+            session_id=ctx.session_id,
+            decision="pass",
+            phase="post-session",
+            http_status=200,
+        )
     finally:
         # Nothing to clean up — the bus and orchestrator are GC-owned.
         pass
